@@ -117,10 +117,7 @@ class bus_config;
     function void print();
 
         $display("");
-        $display("========================================");
         $display("           BUS TEST CONFIG");
-        $display("========================================");
-
         $display(
             "Transacciones/terminal : %0d",
             n_txn_per_terminal

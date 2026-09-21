@@ -54,11 +54,8 @@ class bus_txn #(
 
     }
 
-
-    // ---------------------------------------------------------
     // Construcción de la dirección
-    // ---------------------------------------------------------
-
+    
     constraint c_destination {
 
         if (dst_type == DST_VALID) {
@@ -67,16 +64,12 @@ class bus_txn #(
 
             if (!cfg.allow_self_send)
                 dst != src;
-
         }
-
 
         if (dst_type == DST_BROADCAST) {
 
             dst == BROADCAST;
-
         }
-
 
         if (dst_type == DST_INVALID) {
 
@@ -87,11 +80,8 @@ class bus_txn #(
 
     }
 
-
-    // ---------------------------------------------------------
     // Retardo
-    // ---------------------------------------------------------
-
+    
     constraint c_delay {
 
         delay inside {
@@ -100,10 +90,8 @@ class bus_txn #(
 
     }
 
-
-    // ---------------------------------------------------------
     // Constructor
-    // ---------------------------------------------------------
+
 
     function new(int unsigned src_id = 0);
 
@@ -115,10 +103,8 @@ class bus_txn #(
 
     endfunction
 
-
-    // ---------------------------------------------------------
     // Después de randomizar
-    // ---------------------------------------------------------
+
 
     function void post_randomize();
 
@@ -134,11 +120,8 @@ class bus_txn #(
 
     endfunction
 
-
-    // ---------------------------------------------------------
     // Copia independiente
-    // ---------------------------------------------------------
-
+   
     function bus_txn #(PCKG_SZ, DRVRS, BROADCAST) copy();
 
         bus_txn #(
@@ -160,11 +143,7 @@ class bus_txn #(
         return c;
 
     endfunction
-
-
-    // ---------------------------------------------------------
     // Print
-    // ---------------------------------------------------------
 
     function void print(string tag = "BUS_TXN");
 
