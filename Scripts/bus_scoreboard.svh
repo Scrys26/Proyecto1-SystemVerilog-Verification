@@ -5,277 +5,422 @@ class bus_scoreboard #(
     parameter bit BROADCAST_TO_SELF = 1'b0
 );
 
-    mailbox #(bus_mon_txn #(PCKG_SZ, DRVRS)) mon2sb;
+    // Agent -> Scoreboard
+    mailbox #(
+        bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
+    ) agnt2sb;
 
-    // Paquetes aceptados por el DUT mediante pop,
-    // pero aun pendientes de aparecer en un push.
-    bus_expected_item #(PCKG_SZ) pending_delivery[$];
 
-    // FIFO receptora emulada por terminal.
-    bit [PCKG_SZ-1:0] rx_fifo [DRVRS][$];
+    // Modelo esperado de las FIFOs de entrada.
+    // Hay una queue independiente para cada terminal de origen.
+    bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) fifo_esperada [DRVRS][$];
 
-    // Seguimiento del frente de cada FIFO de origen.
-    bit source_valid [DRVRS];
-    bit [PCKG_SZ-1:0] source_packet [DRVRS];
-    time source_visible_time [DRVRS];
 
-    int unsigned n_pops;
-    int unsigned n_pushes;
-    int unsigned n_completed;
-    int unsigned n_errors;
-    int unsigned n_invalid;
+    // Paquetes que ya fueron consumidos desde una FIFO de origen
+    // y que ahora se esperan en uno o varios destinos.
+    bus_expected_item #(PCKG_SZ) entregas_pendientes[$];
+
+
+    // Estadisticas del modelo
+    int unsigned n_recibidas;
+    int unsigned n_consumidas;
+    int unsigned n_entregas_creadas;
+    int unsigned n_entregas_retiradas;
     int unsigned n_broadcast;
+    int unsigned n_invalidas;
+    int unsigned n_src_fuera_rango;
+
 
     function new(
-        mailbox #(bus_mon_txn #(PCKG_SZ, DRVRS)) mon2sb
+        mailbox #(
+            bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
+        ) agnt2sb
     );
-        this.mon2sb = mon2sb;
 
-        n_pops = 0;
-        n_pushes = 0;
-        n_completed = 0;
-        n_errors = 0;
-        n_invalid = 0;
-        n_broadcast = 0;
+        this.agnt2sb = agnt2sb;
 
-        foreach (source_valid[i]) begin
-            source_valid[i] = 0;
-            source_packet[i] = '0;
-            source_visible_time[i] = 0;
-        end
+        n_recibidas          = 0;
+        n_consumidas         = 0;
+        n_entregas_creadas   = 0;
+        n_entregas_retiradas = 0;
+        n_broadcast          = 0;
+        n_invalidas          = 0;
+        n_src_fuera_rango    = 0;
+
     endfunction
 
 
-    function void reset_model();
-        pending_delivery.delete();
+    // ---------------------------------------------------------
+    // Recibe del Agent las transacciones esperadas.
+    //
+    // Este proceso NO compara contra el DUT.
+    // Solamente construye el modelo esperado.
+    // ---------------------------------------------------------
 
-        foreach (rx_fifo[i])
-            rx_fifo[i].delete();
+    task run();
 
-        foreach (source_valid[i]) begin
-            source_valid[i] = 0;
-            source_packet[i] = '0;
-            source_visible_time[i] = 0;
-        end
-    endfunction
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr;
 
+        $display(
+            "[%0t] [SB] iniciado",
+            $time
+        );
 
-    task track_sources(
-        bus_mon_txn #(PCKG_SZ, DRVRS) m
-    );
-        for (int src = 0; src < DRVRS; src++) begin
-            if (m.pndng[src] && !source_valid[src]) begin
-                source_valid[src] = 1;
-                source_packet[src] = m.D_pop[src];
-                source_visible_time[src] = m.t;
+        forever begin
+
+            agnt2sb.get(tr);
+
+            if (tr.src >= DRVRS) begin
+
+                n_src_fuera_rango++;
+
+                $display(
+                    "[%0t] [SB] transaccion ignorada: src=%0d fuera de rango",
+                    $time,
+                    tr.src
+                );
+
             end
+            else begin
+
+                // La copia que llega del Agent se guarda en
+                // la FIFO esperada de su terminal de origen.
+                fifo_esperada[tr.src].push_back(tr);
+
+                n_recibidas++;
+
+            end
+
         end
+
     endtask
 
 
-    function int find_expected(
-        int unsigned dst,
-        bit [PCKG_SZ-1:0] packet
-    );
-        foreach (pending_delivery[i]) begin
-            if (
-                pending_delivery[i].dst == dst &&
-                pending_delivery[i].packet === packet
-            )
-                return i;
-        end
+    // ---------------------------------------------------------
+    // Devuelve el elemento esperado al frente de una FIFO
+    // sin retirarlo.
+    // ---------------------------------------------------------
 
-        return -1;
+    function bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) ver_frente(int unsigned src);
+
+        if (src >= DRVRS)
+            return null;
+
+        if (fifo_esperada[src].size() == 0)
+            return null;
+
+        return fifo_esperada[src][0];
+
     endfunction
 
 
-    function void add_expected(
-        int unsigned src,
+    // ---------------------------------------------------------
+    // Retira el elemento esperado al frente de una FIFO.
+    //
+    // El Checker llamara esta funcion cuando observe un pop
+    // valido del DUT para esa terminal.
+    // ---------------------------------------------------------
+
+    function bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) consumir_frente(int unsigned src);
+
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr;
+
+        if (src >= DRVRS)
+            return null;
+
+        if (fifo_esperada[src].size() == 0)
+            return null;
+
+        tr = fifo_esperada[src].pop_front();
+
+        n_consumidas++;
+
+        return tr;
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Crea una entrega esperada.
+    // ---------------------------------------------------------
+
+    function void agregar_entrega(
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr,
+
         int unsigned dst,
-        bit [PCKG_SZ-1:0] packet,
-        time t_send,
         time t_pop,
         bit is_broadcast
     );
+
         bus_expected_item #(PCKG_SZ) item;
 
         item = new();
-        item.src = src;
-        item.dst = dst;
-        item.packet = packet;
-        item.t_send = t_send;
-        item.t_pop = t_pop;
+
+        item.txn_id       = tr.id;
+        item.src          = tr.src;
+        item.dst          = dst;
+        item.packet       = tr.packet;
+        item.t_pop        = t_pop;
         item.is_broadcast = is_broadcast;
 
-        pending_delivery.push_back(item);
+        entregas_pendientes.push_back(item);
+
+        n_entregas_creadas++;
+
     endfunction
 
 
-    task process_pop(
-        bus_mon_txn #(PCKG_SZ, DRVRS) m,
-        int unsigned src
+    // ---------------------------------------------------------
+    // A partir de una transaccion que el DUT acaba de consumir,
+    // construye el comportamiento esperado de salida.
+    //
+    // Esta funcion debe ser llamada por el Checker despues
+    // de verificar el pop.
+    // ---------------------------------------------------------
+
+    function void esperar_entrega(
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr,
+
+        time t_pop
     );
-        bit [PCKG_SZ-1:0] packet;
+
         bit [7:0] dst;
 
-        packet = m.D_pop[src];
-        dst = packet[PCKG_SZ-1 -: 8];
+        if (tr == null)
+            return;
 
-        n_pops++;
+        dst = tr.packet[PCKG_SZ-1 -: 8];
 
-        if (!m.pndng[src]) begin
-            $error(
-                "[%0t] SB: pop sin pndng en terminal %0d",
-                m.t, src
-            );
-            n_errors++;
-        end
 
-        if (source_valid[src]) begin
-            if (packet !== source_packet[src]) begin
-                $error(
-                    "[%0t] SB: D_pop cambio antes de pop. src=%0d esperado=0x%0h observado=0x%0h",
-                    m.t, src, source_packet[src], packet
-                );
-                n_errors++;
-            end
-        end
-
+        // Broadcast
         if (dst == BROADCAST) begin
+
             n_broadcast++;
 
             for (int d = 0; d < DRVRS; d++) begin
-                if (BROADCAST_TO_SELF || (d != src)) begin
-                    add_expected(
-                        src,
+
+                if (BROADCAST_TO_SELF || (d != tr.src)) begin
+
+                    agregar_entrega(
+                        tr,
                         d,
-                        packet,
-                        source_valid[src] ? source_visible_time[src] : m.t,
-                        m.t,
+                        t_pop,
                         1'b1
                     );
+
                 end
+
             end
+
         end
+
+        // Transferencia punto a punto valida
         else if (dst < DRVRS) begin
-            add_expected(
-                src,
+
+            agregar_entrega(
+                tr,
                 dst,
-                packet,
-                source_valid[src] ? source_visible_time[src] : m.t,
-                m.t,
+                t_pop,
                 1'b0
             );
+
         end
+
+        // Destino invalido: no se espera ningun push
         else begin
-            n_invalid++;
 
-            $display(
-                "[%0t] SB: destino invalido src=%0d dst=0x%0h packet=0x%0h",
-                m.t, src, dst, packet
-            );
+            n_invalidas++;
+
         end
 
-        source_valid[src] = 0;
-        source_packet[src] = '0;
-        source_visible_time[src] = 0;
-    endtask
-
-
-    task process_push(
-        bus_mon_txn #(PCKG_SZ, DRVRS) m,
-        int unsigned dst
-    );
-        bit [PCKG_SZ-1:0] packet;
-        int idx;
-        bus_expected_item #(PCKG_SZ) item;
-
-        packet = m.D_push[dst];
-        n_pushes++;
-
-        idx = find_expected(dst, packet);
-
-        if (idx < 0) begin
-            $error(
-                "[%0t] SB: PUSH inesperado dst=%0d packet=0x%0h",
-                m.t, dst, packet
-            );
-            n_errors++;
-            return;
-        end
-
-        item = pending_delivery[idx];
-
-        item.t_recv = m.t;
-        item.latency = item.t_recv - item.t_send;
-
-        // Emulacion de la FIFO de recepcion.
-        rx_fifo[dst].push_back(packet);
-
-        pending_delivery.delete(idx);
-        n_completed++;
-
-        $display(
-            "[%0t] SB PASS: src=%0d dst=%0d packet=0x%0h latency=%0t",
-            m.t, item.src, item.dst, item.packet, item.latency
-        );
-    endtask
-
-
-    task run();
-        bus_mon_txn #(PCKG_SZ, DRVRS) m;
-
-        $display("[%0t] Scoreboard iniciado", $time);
-
-        forever begin
-            mon2sb.get(m);
-
-            if (m.reset) begin
-                reset_model();
-                continue;
-            end
-
-            track_sources(m);
-
-            for (int src = 0; src < DRVRS; src++) begin
-                if (m.pop[src])
-                    process_pop(m, src);
-            end
-
-            for (int dst = 0; dst < DRVRS; dst++) begin
-                if (m.push[dst])
-                    process_push(m, dst);
-            end
-        end
-    endtask
-
-
-    function void final_check();
-        if (pending_delivery.size() != 0) begin
-            $error(
-                "SB: quedaron %0d entregas pendientes al finalizar",
-                pending_delivery.size()
-            );
-
-            n_errors += pending_delivery.size();
-        end
     endfunction
 
 
-    function void report();
+    // ---------------------------------------------------------
+    // Busca una entrega esperada por destino y paquete.
+    //
+    // Retorna:
+    //   indice >= 0  -> encontrada
+    //   -1           -> no encontrada
+    // ---------------------------------------------------------
+
+    function int buscar_entrega(
+        int unsigned dst,
+        bit [PCKG_SZ-1:0] packet
+    );
+
+        foreach (entregas_pendientes[i]) begin
+
+            if (
+                entregas_pendientes[i].dst == dst &&
+                entregas_pendientes[i].packet === packet
+            ) begin
+
+                return i;
+
+            end
+
+        end
+
+        return -1;
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Permite consultar una entrega sin eliminarla.
+    // ---------------------------------------------------------
+
+    function bus_expected_item #(PCKG_SZ) ver_entrega(
+        int index
+    );
+
+        if (
+            index < 0 ||
+            index >= entregas_pendientes.size()
+        )
+            return null;
+
+        return entregas_pendientes[index];
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Retira una entrega una vez que el Checker comprobo
+    // que realmente aparecio en el destino.
+    // ---------------------------------------------------------
+
+    function bus_expected_item #(PCKG_SZ) retirar_entrega(
+        int index
+    );
+
+        bus_expected_item #(PCKG_SZ) item;
+
+        if (
+            index < 0 ||
+            index >= entregas_pendientes.size()
+        )
+            return null;
+
+        item = entregas_pendientes[index];
+
+        entregas_pendientes.delete(index);
+
+        n_entregas_retiradas++;
+
+        return item;
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Limpia todo el modelo.
+    //
+    // Debe utilizarse solamente si el Driver tambien limpia
+    // sus FIFOs durante ese mismo reset.
+    // ---------------------------------------------------------
+
+    function void limpiar();
+
+        foreach (fifo_esperada[i])
+            fifo_esperada[i].delete();
+
+        entregas_pendientes.delete();
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Indica si ya no quedan transacciones esperadas.
+    // ---------------------------------------------------------
+
+    function bit vacio();
+
+        if (agnt2sb.num() != 0)
+            return 0;
+
+        foreach (fifo_esperada[i]) begin
+
+            if (fifo_esperada[i].size() != 0)
+                return 0;
+
+        end
+
+        if (entregas_pendientes.size() != 0)
+            return 0;
+
+        return 1;
+
+    endfunction
+
+
+    // ---------------------------------------------------------
+    // Reporte del modelo.
+    //
+    // No imprime PASS/FAIL porque esa responsabilidad
+    // pertenece al Checker.
+    // ---------------------------------------------------------
+
+    function void reporte();
+
         $display("");
         $display("======================================");
         $display("          SCOREBOARD REPORT");
         $display("======================================");
-        $display("POP observados       : %0d", n_pops);
-        $display("PUSH observados      : %0d", n_pushes);
-        $display("Completados          : %0d", n_completed);
-        $display("Broadcast             : %0d", n_broadcast);
-        $display("Destinos invalidos   : %0d", n_invalid);
-        $display("Pendientes           : %0d", pending_delivery.size());
-        $display("Errores              : %0d", n_errors);
+        $display("Recibidas del Agent      : %0d", n_recibidas);
+        $display("Consumidas por pop       : %0d", n_consumidas);
+        $display("Entregas creadas         : %0d", n_entregas_creadas);
+        $display("Entregas retiradas       : %0d", n_entregas_retiradas);
+        $display("Broadcast                : %0d", n_broadcast);
+        $display("Destinos invalidos       : %0d", n_invalidas);
+        $display("Src fuera de rango       : %0d", n_src_fuera_rango);
+        $display(
+            "Entregas pendientes     : %0d",
+            entregas_pendientes.size()
+        );
+
+        foreach (fifo_esperada[i]) begin
+
+            $display(
+                "FIFO esperada[%0d]      : %0d",
+                i,
+                fifo_esperada[i].size()
+            );
+
+        end
+
         $display("======================================");
         $display("");
+
     endfunction
 
 endclass

@@ -3,7 +3,6 @@ class bus_agent #(
     parameter int DRVRS   = 4,
     parameter bit [7:0] BROADCAST = 8'hFF
 );
-
     int unsigned terminal_id;
 
     bus_config cfg;
@@ -11,6 +10,10 @@ class bus_agent #(
     mailbox #(
         bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
     ) agnt2drv;
+
+    mailbox #(
+        bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
+    ) agnt2sb;
 
     bus_txn #(
         PCKG_SZ,
@@ -20,17 +23,21 @@ class bus_agent #(
 
     int unsigned n_generated;
 
-
     function new(
         int unsigned terminal_id,
 
         mailbox #(
             bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
-        ) agnt2drv
+        ) agnt2drv,
+
+        mailbox #(
+            bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
+        ) agnt2sb
     );
 
         this.terminal_id = terminal_id;
         this.agnt2drv    = agnt2drv;
+        this.agnt2sb     = agnt2sb;
 
         cfg = bus_config::get();
 
@@ -40,17 +47,23 @@ class bus_agent #(
 
     endfunction
 
-
     task run();
 
         bus_txn #(
             PCKG_SZ,
             DRVRS,
             BROADCAST
-        ) tr;
+        ) tr_drv;
+
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr_sb;
+
 
         $display(
-            "[%0t] Agent[%0d] iniciado",
+            "[%0t] [AGNT%0d] iniciado",
             $time,
             terminal_id
         );
@@ -61,34 +74,40 @@ class bus_agent #(
 
                 $fatal(
                     1,
-                    "[%0t] Agent[%0d]: fallo randomize()",
+                    "[%0t] [AGNT%0d] fallo randomize()",
                     $time,
                     terminal_id
                 );
 
             end
 
-            tr = blueprint.copy();
+            tr_drv = blueprint.copy();
+            tr_sb  = blueprint.copy();
 
             n_generated++;
 
+
             if (cfg.verbose) begin
 
-                tr.print(
+                tr_drv.print(
                     $sformatf(
-                        "Agent[%0d]",
+                        "AGNT%0d",
                         terminal_id
                     )
                 );
 
             end
 
-            agnt2drv.put(tr);
+             agnt2sb.put(tr_sb);
+
+            agnt2drv.put(tr_drv);
+       
 
         end
 
+
         $display(
-            "[%0t] Agent[%0d] termino. Generadas=%0d",
+            "[%0t] [AGNT%0d] termino. Generadas=%0d",
             $time,
             terminal_id,
             n_generated
