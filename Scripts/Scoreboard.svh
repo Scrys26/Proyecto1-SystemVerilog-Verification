@@ -10,17 +10,13 @@ class Scoreboard #(
         bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
     ) agnt2sb;
 
-
-
     bus_txn #(
         PCKG_SZ,
         DRVRS,
         BROADCAST
     ) fifo_esperada [DRVRS][$];
 
-
     bus_expected_item #(PCKG_SZ) entregas_pendientes[$];
-
 
     // Estadisticas del modelo
     int unsigned n_recibidas;
@@ -31,13 +27,11 @@ class Scoreboard #(
     int unsigned n_invalidas;
     int unsigned n_src_fuera_rango;
 
-
     function new(
         mailbox #(
             bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
         ) agnt2sb
     );
-
         this.agnt2sb = agnt2sb;
 
         n_recibidas          = 0;
@@ -49,8 +43,6 @@ class Scoreboard #(
         n_src_fuera_rango    = 0;
 
     endfunction
-
-
     task run();
 
         bus_txn #(
@@ -65,38 +57,22 @@ class Scoreboard #(
         );
 
         forever begin
-
             agnt2sb.get(tr);
 
             if (tr.src >= DRVRS) begin
 
                 n_src_fuera_rango++;
 
-                $display(
-                    "[%0t] [SB] transaccion ignorada: src=%0d fuera de rango",
-                    $time,
-                    tr.src
-                );
-
+                $display("[%0t] [SB] transaccion ignorada: src=%0d fuera de rango",$time,tr.src);
             end
             else begin
-
-                // La copia que llega del Agent se guarda en
-                // la FIFO esperada de su terminal de origen.
                 fifo_esperada[tr.src].push_back(tr);
-
                 n_recibidas++;
-
             end
 
         end
 
     endtask
-
-
-    // Devuelve el elemento esperado al frente de una FIFO
-    // sin retirarlo.
-
 
     function bus_txn #(
         PCKG_SZ,
@@ -104,12 +80,12 @@ class Scoreboard #(
         BROADCAST
     ) ver_frente(int unsigned src);
 
-        if (src >= DRVRS)
+        if (src >= DRVRS) begin
             return null;
-
-        if (fifo_esperada[src].size() == 0)
+        end
+        if (fifo_esperada[src].size() == 0) begin
             return null;
-
+        end
         return fifo_esperada[src][0];
 
     endfunction
@@ -126,21 +102,19 @@ class Scoreboard #(
             BROADCAST
         ) tr;
 
-        if (src >= DRVRS)
+        if (src >= DRVRS) begin
             return null;
-
-        if (fifo_esperada[src].size() == 0)
+        end
+        if (fifo_esperada[src].size() == 0) begin  
             return null;
+        end
 
         tr = fifo_esperada[src].pop_front();
-
         n_consumidas++;
 
         return tr;
 
     endfunction
-
-
 
     function void agregar_entrega(
         bus_txn #(
@@ -157,7 +131,6 @@ class Scoreboard #(
         bus_expected_item #(PCKG_SZ) item;
 
         item = new();
-
         item.txn_id       = tr.id;
         item.src          = tr.src;
         item.dst          = dst;
@@ -170,10 +143,6 @@ class Scoreboard #(
         n_entregas_creadas++;
 
     endfunction
-
-
-
-
     function void esperar_entrega(
         bus_txn #(
             PCKG_SZ,
@@ -186,34 +155,25 @@ class Scoreboard #(
 
         bit [7:0] dst;
 
-        if (tr == null)
+        if (tr == null) begin   
             return;
-
+        end
         dst = tr.packet[PCKG_SZ-1 -: 8];
-
-
         // Broadcast
         if (dst == BROADCAST) begin
-
             n_broadcast++;
-
             for (int d = 0; d < DRVRS; d++) begin
 
                 if (BROADCAST_TO_SELF || (d != tr.src)) begin
-
                     agregar_entrega(
                         tr,
                         d,
                         t_pop,
                         1'b1
                     );
-
                 end
-
             end
-
         end
-
         // Transferencia punto a punto valida
         else if (dst < DRVRS) begin
 
@@ -225,50 +185,35 @@ class Scoreboard #(
             );
 
         end
-
         // Destino invalido: no se espera ningun push
         else begin
-
             n_invalidas++;
-
         end
 
     endfunction
 
-
     function int buscar_entrega(
         int unsigned dst,
-        bit [PCKG_SZ-1:0] packet
+        logic [PCKG_SZ-1:0] packet
     );
 
         foreach (entregas_pendientes[i]) begin
 
-            if (
-                entregas_pendientes[i].dst == dst &&
-                entregas_pendientes[i].packet === packet
-            ) begin
-
+            if (entregas_pendientes[i].dst == dst && entregas_pendientes[i].packet === packet) begin
                 return i;
-
             end
-
         end
 
         return -1;
 
     endfunction
 
-
     function bus_expected_item #(PCKG_SZ) ver_entrega(
         int index
     );
-
-        if (
-            index < 0 ||
-            index >= entregas_pendientes.size()
-        )
+        if (index < 0 ||index >= entregas_pendientes.size())begin 
             return null;
-
+        end
         return entregas_pendientes[index];
 
     endfunction
@@ -276,52 +221,41 @@ class Scoreboard #(
     function bus_expected_item #(PCKG_SZ) retirar_entrega(
         int index
     );
-
         bus_expected_item #(PCKG_SZ) item;
-
-        if (
-            index < 0 ||
-            index >= entregas_pendientes.size()
-        )
+        if (index < 0 ||index >= entregas_pendientes.size())begin
             return null;
-
+        end
         item = entregas_pendientes[index];
-
         entregas_pendientes.delete(index);
-
         n_entregas_retiradas++;
-
         return item;
 
     endfunction
 
-
     function void limpiar();
 
-        foreach (fifo_esperada[i])
+        foreach (fifo_esperada[i]) begin
             fifo_esperada[i].delete();
-
+        end 
         entregas_pendientes.delete();
 
     endfunction
 
     function bit vacio();
 
-        if (agnt2sb.num() != 0)
+        if (agnt2sb.num() != 0)begin
             return 0;
-
+        end 
         foreach (fifo_esperada[i]) begin
 
-            if (fifo_esperada[i].size() != 0)
+            if (fifo_esperada[i].size() != 0) begin  
                 return 0;
-
+            end
         end
-
-        if (entregas_pendientes.size() != 0)
+        if (entregas_pendientes.size() != 0) begin
             return 0;
-
+        end
         return 1;
-
     endfunction
 
     function void reporte();

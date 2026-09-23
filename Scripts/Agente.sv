@@ -34,17 +34,13 @@ class Agente #(
             bus_txn #(PCKG_SZ, DRVRS, BROADCAST)
         ) agnt2sb
     );
-
         this.terminal_id = terminal_id;
         this.agnt2drv    = agnt2drv;
         this.agnt2sb     = agnt2sb;
-
+        
         cfg = bus_config::get();
-
         blueprint = new(terminal_id);
-
         n_generated = 0;
-
     endfunction
 
     task run();
@@ -60,51 +56,22 @@ class Agente #(
             DRVRS,
             BROADCAST
         ) tr_sb;
-
-
-        $display(
-            "[%0t] [AGNT%0d] iniciado",
-            $time,
-            terminal_id
-        );
-
+        $display("[%0t] [AGNT%0d] iniciado",$time,terminal_id);
         repeat (cfg.n_txn_per_terminal) begin
 
             if (!blueprint.randomize()) begin
 
-                $fatal(
-                    1,
-                    "[%0t] [AGNT%0d] fallo randomize()",
-                    $time,
-                    terminal_id
-                );
-
+                $fatal(1,"[%0t] [AGNT%0d] fallo randomize()",$time, terminal_id );
             end
-
             tr_drv = blueprint.copy();
             tr_sb  = blueprint.copy();
-
             n_generated++;
-
-
             if (cfg.verbose) begin
-
-                tr_drv.print(
-                    $sformatf(
-                        "AGNT%0d",
-                        terminal_id
-                    )
-                );
-
+                tr_drv.print($sformatf("AGNT%0d",terminal_id));
             end
-
              agnt2sb.put(tr_sb);
-
-            agnt2drv.put(tr_drv);
-       
-
+             agnt2drv.put(tr_drv);
         end
-
 
         $display(
             "[%0t] [AGNT%0d] termino. Generadas=%0d",
