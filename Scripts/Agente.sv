@@ -1,4 +1,4 @@
-class bus_agent #(
+class Agente #(
     parameter int PCKG_SZ = 16,
     parameter int DRVRS   = 4,
     parameter bit [7:0] BROADCAST = 8'hFF

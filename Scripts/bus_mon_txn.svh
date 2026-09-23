@@ -4,14 +4,14 @@ class bus_mon_txn #(
 );
 
     time t;
-    bit reset;
+    logic reset;
 
-    bit pndng [DRVRS];
-    bit pop   [DRVRS];
-    bit push  [DRVRS];
+    logic pndng [DRVRS];
+    logic pop   [DRVRS];
+    logic push  [DRVRS];
 
-    bit [PCKG_SZ-1:0] D_pop  [DRVRS];
-    bit [PCKG_SZ-1:0] D_push [DRVRS];
+    logic [PCKG_SZ-1:0] D_pop  [DRVRS];
+    logic [PCKG_SZ-1:0] D_push [DRVRS];
 
     function new();
         t = 0;

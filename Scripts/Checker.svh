@@ -1,4 +1,4 @@
-class bus_checker #(
+class Checker #(
     parameter int PCKG_SZ = 16,
     parameter int DRVRS   = 4,
     parameter bit [7:0] BROADCAST = 8'hFF,
@@ -11,7 +11,7 @@ class bus_checker #(
     ) mon2chk;
 
    
-    bus_scoreboard #(
+    Scoreboard #(
         PCKG_SZ,
         DRVRS,
         BROADCAST,

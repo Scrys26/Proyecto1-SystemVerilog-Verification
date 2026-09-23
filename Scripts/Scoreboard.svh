@@ -1,4 +1,4 @@
-class bus_scoreboard #(
+class Scoreboard #(
     parameter int PCKG_SZ = 16,
     parameter int DRVRS   = 4,
     parameter bit [7:0] BROADCAST = 8'hFF,
@@ -11,8 +11,7 @@ class bus_scoreboard #(
     ) agnt2sb;
 
 
-    // Modelo esperado de las FIFOs de entrada.
-    // Hay una queue independiente para cada terminal de origen.
+
     bus_txn #(
         PCKG_SZ,
         DRVRS,
@@ -20,8 +19,6 @@ class bus_scoreboard #(
     ) fifo_esperada [DRVRS][$];
 
 
-    // Paquetes que ya fueron consumidos desde una FIFO de origen
-    // y que ahora se esperan en uno o varios destinos.
     bus_expected_item #(PCKG_SZ) entregas_pendientes[$];
 
 
@@ -53,13 +50,6 @@ class bus_scoreboard #(
 
     endfunction
 
-
-    // ---------------------------------------------------------
-    // Recibe del Agent las transacciones esperadas.
-    //
-    // Este proceso NO compara contra el DUT.
-    // Solamente construye el modelo esperado.
-    // ---------------------------------------------------------
 
     task run();
 
@@ -104,10 +94,9 @@ class bus_scoreboard #(
     endtask
 
 
-    // ---------------------------------------------------------
     // Devuelve el elemento esperado al frente de una FIFO
     // sin retirarlo.
-    // ---------------------------------------------------------
+
 
     function bus_txn #(
         PCKG_SZ,
@@ -124,14 +113,6 @@ class bus_scoreboard #(
         return fifo_esperada[src][0];
 
     endfunction
-
-
-    // ---------------------------------------------------------
-    // Retira el elemento esperado al frente de una FIFO.
-    //
-    // El Checker llamara esta funcion cuando observe un pop
-    // valido del DUT para esa terminal.
-    // ---------------------------------------------------------
 
     function bus_txn #(
         PCKG_SZ,
@@ -160,9 +141,6 @@ class bus_scoreboard #(
     endfunction
 
 
-    // ---------------------------------------------------------
-    // Crea una entrega esperada.
-    // ---------------------------------------------------------
 
     function void agregar_entrega(
         bus_txn #(
@@ -194,13 +172,7 @@ class bus_scoreboard #(
     endfunction
 
 
-    // ---------------------------------------------------------
-    // A partir de una transaccion que el DUT acaba de consumir,
-    // construye el comportamiento esperado de salida.
-    //
-    // Esta funcion debe ser llamada por el Checker despues
-    // de verificar el pop.
-    // ---------------------------------------------------------
+
 
     function void esperar_entrega(
         bus_txn #(
@@ -264,14 +236,6 @@ class bus_scoreboard #(
     endfunction
 
 
-    // ---------------------------------------------------------
-    // Busca una entrega esperada por destino y paquete.
-    //
-    // Retorna:
-    //   indice >= 0  -> encontrada
-    //   -1           -> no encontrada
-    // ---------------------------------------------------------
-
     function int buscar_entrega(
         int unsigned dst,
         bit [PCKG_SZ-1:0] packet
@@ -295,10 +259,6 @@ class bus_scoreboard #(
     endfunction
 
 
-    // ---------------------------------------------------------
-    // Permite consultar una entrega sin eliminarla.
-    // ---------------------------------------------------------
-
     function bus_expected_item #(PCKG_SZ) ver_entrega(
         int index
     );
@@ -312,12 +272,6 @@ class bus_scoreboard #(
         return entregas_pendientes[index];
 
     endfunction
-
-
-    // ---------------------------------------------------------
-    // Retira una entrega una vez que el Checker comprobo
-    // que realmente aparecio en el destino.
-    // ---------------------------------------------------------
 
     function bus_expected_item #(PCKG_SZ) retirar_entrega(
         int index
@@ -342,13 +296,6 @@ class bus_scoreboard #(
     endfunction
 
 
-    // ---------------------------------------------------------
-    // Limpia todo el modelo.
-    //
-    // Debe utilizarse solamente si el Driver tambien limpia
-    // sus FIFOs durante ese mismo reset.
-    // ---------------------------------------------------------
-
     function void limpiar();
 
         foreach (fifo_esperada[i])
@@ -357,11 +304,6 @@ class bus_scoreboard #(
         entregas_pendientes.delete();
 
     endfunction
-
-
-    // ---------------------------------------------------------
-    // Indica si ya no quedan transacciones esperadas.
-    // ---------------------------------------------------------
 
     function bit vacio();
 
@@ -381,14 +323,6 @@ class bus_scoreboard #(
         return 1;
 
     endfunction
-
-
-    // ---------------------------------------------------------
-    // Reporte del modelo.
-    //
-    // No imprime PASS/FAIL porque esa responsabilidad
-    // pertenece al Checker.
-    // ---------------------------------------------------------
 
     function void reporte();
 
