@@ -44,9 +44,8 @@ class bus_txn #(
 
         if (dst_type == DST_VALID) {
             dst < DRVRS;
-            if (!cfg.allow_self_send) begin
+            if (!cfg.allow_self_send)
                 dst != src;
-            end
         }
         if (dst_type == DST_BROADCAST) {
             dst == BROADCAST;
