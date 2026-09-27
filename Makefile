@@ -106,7 +106,7 @@ ALL_SRCS = $(COMPILE_SRCS) $(TB_DEP_SRCS)
 #---------------------------------------------------------------------
 # Un ejecutable distinto por TOP evita reutilizar accidentalmente un
 # simv compilado para otra prueba.
-SIMV       ?= simv_$(TOP)
+SIMV ?= simv_$(TOP)_b$(BITS)_d$(DRVRS)_p$(PCKG_SZ)_bc$(BROADCAST)
 SEED       ?= 1
 MAX_CYCLES ?= 400
 PLUSARGS   ?=
