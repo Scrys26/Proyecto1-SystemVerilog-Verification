@@ -61,8 +61,8 @@ RTL_SRCS = $(RTL_DIR)/DUT.sv
 IF_SRCS = $(TB_DIR)/bus_if_prov.sv
 
 # Package principal del ambiente.
-PKG_SRC = $(TB_DIR)/tb_pkg.sv
 
+PKG_SRC = $(TB_DIR)/Paquete.sv
 # Clases incluidas por tb_pkg.sv.
 # No se compilan sueltas; se listan como dependencias para que Make
 # fuerce una recompilacion cuando alguna cambie.
