@@ -30,7 +30,7 @@ TOP_DIR  = TestBench
 #---------------------------------------------------------------------
 # Parametros estructurales del ambiente
 #
-# tb_pkg.sv toma estos valores mediante:
+# Paquete.sv toma estos valores mediante:
 #   TB_BITS
 #   TB_DRVRS
 #   TB_PCKG_SZ
@@ -56,14 +56,14 @@ TB_DEFINES = +define+TB_BITS=$(BITS) \
 # DUT recortado. No requiere instanciar fifo.sv ni fifo_flops.
 RTL_SRCS = $(RTL_DIR)/DUT.sv
 
-# Interfaz. Debe compilarse ANTES de tb_pkg.sv porque Driver y Monitor
+# Interfaz. Debe compilarse ANTES de Paquete.sv porque Driver y Monitor
 # declaran virtual interfaces de tipo bus_if.
 IF_SRCS = $(TB_DIR)/bus_if_prov.sv
 
 # Package principal del ambiente.
 
 PKG_SRC = $(TB_DIR)/Paquete.sv
-# Clases incluidas por tb_pkg.sv.
+# Clases incluidas por Paquete.sv.
 # No se compilan sueltas; se listan como dependencias para que Make
 # fuerce una recompilacion cuando alguna cambie.
 CLASS_SRCS = $(TB_DIR)/bus_config.svh \
@@ -82,7 +82,7 @@ TOP ?= pruebaMF
 TOP_SRC = $(TOP_DIR)/$(TOP).sv
 
 # La prueba de humo debe seguir siendo realmente minima: DUT + interfaz
-# + pruebaMF. Para cualquier otro top se agrega tb_pkg.sv.
+# + pruebaMF. Para cualquier otro top se agrega Paquete.sv.
 ifeq ($(TOP),pruebaMF)
 TB_COMPILE_SRCS =
 TB_DEP_SRCS =
@@ -188,7 +188,8 @@ files:
 	  echo "Dependencias del package:"; \
 	  for f in $(TB_DEP_SRCS); do echo "   $$f"; done; \
 	else \
-	  echo "Smoke test: tb_pkg.sv y clases no se compilan."; \
+	  echo "Smoke test: Paquete
+	.sv y clases no se compilan."; \
 	fi
 
 ## check: verifica que todas las fuentes necesarias para TOP existan
