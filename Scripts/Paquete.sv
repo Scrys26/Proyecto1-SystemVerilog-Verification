@@ -17,7 +17,7 @@
     `define TB_BROADCAST 8'hFF
 `endif
 
-package tb_pkg;
+package Paquete;
     // PARAMETROS ESTRUCTURALES
     parameter int BITS = `TB_BITS;
 
