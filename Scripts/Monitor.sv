@@ -1,12 +1,16 @@
-//Monitor hijo 
-class mon_hijo;
+//Monitor hijo
+class mon_hijo #(
+    parameter int BITS    = 1,   // cantidad de buses
+    parameter int PCKG_SZ = 16,
+    parameter int DRVRS   = 4
+);
 
   virtual bus_if #(BITS, DRVRS, PCKG_SZ).MON vif;  // modport MON: solo lectura
   int          id;                                 // numero de terminal
   int unsigned n_push = 0;                         // paquetes recibidos por terminal
   int unsigned n_pop  = 0;                         // paquetes que salieron de terminal
 
-  //Constructor 
+  //Constructor
   function new(int id, virtual bus_if #(BITS, DRVRS, PCKG_SZ).MON vif);
     this.id  = id;
     this.vif = vif;
@@ -21,28 +25,36 @@ class mon_hijo;
     m.D_push[id] = vif.mon_cb.D_push[0][id];
 
     //Si hubo actividad entonces suma en el contador
-    if (m.pop [id]) n_pop++;
-    if (m.push[id]) n_push++;
+    //con === 1'b1 para no contar X durante el reset
+    if (m.pop [id] === 1'b1) n_pop++;
+    if (m.push[id] === 1'b1) n_push++;
   endfunction
 
 endclass
 
 
 //Monitor Padre
-class monitor;
+class monitor #(
+    parameter int BITS    = 1,   // cantidad de buses
+    parameter int PCKG_SZ = 16,
+    parameter int DRVRS   = 4
+);
 
   virtual bus_if #(BITS, DRVRS, PCKG_SZ).MON vif;
   mailbox #(bus_mon_txn #(PCKG_SZ, DRVRS))   mon2chk;   // hacia el Checker
   bus_config                                 cfg;//**
-  mon_hijo                                   hijos[DRVRS]; //Arreglo de hijos
+
+  mon_hijo #(BITS, PCKG_SZ, DRVRS)           hijos[DRVRS]; //Arreglo de hijos
 
   bit          solo_actividad = 0; //Switch para depuracion, en 0 se manda cad ciclo y en 1 los que tienen pop o push **
 
   int unsigned n_muestras = 0;   // cantidad de "fotos entregadas"
   int unsigned n_ciclos   = 0;   // ciclos observados
+  int unsigned n_reset    = 0;   //<- ciclos vistos en reset
 
   //Constructor
-  function new(virtual bus_if #(BITS, DRVRS, PCKG_SZ).MON vif, mailbox #(bus_mon_txn #(PCKG_SZ, DRVRS)) mon2chk);
+  function new(virtual bus_if #(BITS, DRVRS, PCKG_SZ).MON vif,
+               mailbox #(bus_mon_txn #(PCKG_SZ, DRVRS)) mon2chk);
     this.vif     = vif;
     this.mon2chk = mon2chk;
     this.cfg     = bus_config::get();//Devuelve la misma instancia**
@@ -51,18 +63,22 @@ class monitor;
 
   // Main loop: una foto por ciclo
   task run();
-    bus_mon_txn #(PCKG_SZ, DRVRS) m; //Handle donde se guarda la foto 
+    bus_mon_txn #(PCKG_SZ, DRVRS) m; //Handle donde se guarda la foto
     $display("[%0t] [MON] iniciado", $time);
-    
+
     forever begin
       @(vif.mon_cb);          // una muestra por reloj
       n_ciclos++;
 
-      //Un objeto nuevo cada ciclo 
+      //Un objeto nuevo cada ciclo
       m       = new();
       m.t     = $time;
-      
-      m.reset = vif.reset;//Estado de reset
+
+      m.reset = vif.mon_cb.reset; //Estado de reset
+                                  //<- por el clocking block, no la senal
+                                  //<- cruda: asi se evita la carrera
+
+      if (m.reset) n_reset++;     //<-
 
       // Cada hijo llena su parte de la foto
       foreach (hijos[i]) hijos[i].muestrear(m);
@@ -78,15 +94,19 @@ class monitor;
   // Revisa si hubo un pop o push durante el ciclo
   function bit hay_actividad(bus_mon_txn #(PCKG_SZ, DRVRS) m);
     for (int i = 0; i < DRVRS; i++)
-      if (m.pop[i] || m.push[i]) return 1;
+      if (m.pop[i] === 1'b1 || m.push[i] === 1'b1) return 1;   //<- === 1'b1
     return 0;
   endfunction
 
   //Reporte
   function void reporte();
     int unsigned tot_pop = 0, tot_push = 0;
-    $display("-------REPORTE DEL MONITOR-------");
+    $display("");
+    $display("======================================");
+    $display("            MONITOR REPORT");
+    $display("======================================");
     $display("Ciclos observados        : %0d", n_ciclos);
+    $display("Ciclos en reset          : %0d", n_reset);      //<-
     $display("Muestras entregadas      : %0d", n_muestras);
     foreach (hijos[i]) begin
       $display("T%0d: pop=%0d push=%0d", i, hijos[i].n_pop, hijos[i].n_push);
@@ -95,6 +115,8 @@ class monitor;
     end
     $display("Total pop  : %0d", tot_pop);
     $display("Total push : %0d", tot_push);
+    $display("======================================");
+    $display("");
   endfunction
 
 endclass
