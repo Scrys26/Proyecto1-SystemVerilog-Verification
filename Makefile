@@ -8,8 +8,9 @@
 #   make wave         -> corre y abre DVE
 #   make verdi        -> corre y abre Verdi
 #   make vcd          -> corre generando VCD para GTKWave
+#   make files        -> muestra la lista de fuentes resueltas
+#   make check        -> verifica que todas las fuentes existan
 #   make clean        -> borra lo generado
-#   make files        -> muestra la lista de fuentes
 #   make help         -> lista los objetivos
 #
 #   make run SEED=42 MAX_CYCLES=2000
@@ -19,8 +20,16 @@
 #---------------------------------------------------------------------
 # Directorios
 #---------------------------------------------------------------------
-RTL_DIR  = ../DUT/Referencias
-TB_DIR   = ../Scripts
+# Library.sv (DUT del profesor)
+RTL_DIR  = DUT/Referencias
+# clases del ambiente + interfaz
+TB_DIR   = Scripts
+# tops de simulacion
+TOP_DIR  = TestBench
+
+# OJO: no poner comentarios al final de estas lineas. Make se traga
+# los espacios previos al '#' y los mete dentro de la variable, lo
+# que parte las rutas en dos.
 
 #---------------------------------------------------------------------
 # FUENTES
@@ -40,7 +49,9 @@ TB_DIR   = ../Scripts
 # RTL del profesor (version recortada, no requiere fifo.sv)
 RTL_SRCS      = $(RTL_DIR)/DUT.sv
 
-# Interfaz del bus
+# Interfaz del bus.
+# Es un modulo, asi que se compila; no va por include.
+# Si la movieron a Testbench, cambiar TB_DIR por TOP_DIR aqui.
 IF_SRCS       = $(TB_DIR)/bus_if_prov.sv
 
 # Clases del ambiente, en orden de dependencia.
@@ -57,8 +68,8 @@ INCLUDE_SRCS  = $(TB_DIR)/bus_config.svh \
                 $(TB_DIR)/Checker.svh
 
 # Top de la simulacion. Cambiar a top_tb cuando exista el env/test.
-TOP          ?= top_smoke
-TOP_SRC       = $(TB_DIR)/$(TOP).sv
+TOP          ?= pruebaMF
+TOP_SRC       = $(TOP_DIR)/$(TOP).sv
 
 COMPILE_SRCS  = $(RTL_SRCS) $(IF_SRCS) $(TOP_SRC)
 
@@ -84,7 +95,9 @@ RUN_LOG      = run.log
 #  -debug_access+all  permite sondear y forzar senales (para DVE)
 #  -timescale         Library.sv no trae `timescale propio y el diseno
 #                     tiene retardos de compuerta (buf #(3,3))
-#  +incdir            para que el `include del top encuentre las clases
+#  +incdir            DOS directorios: el top hace `include de las
+#                     clases que estan en Scripts, y puede incluir
+#                     cosas de su propia carpeta
 #  +lint=TFIPC-L      avisa si queda un puerto sin conectar, facil de
 #                     cometer con los inout de tri-estado de este diseno
 #---------------------------------------------------------------------
@@ -92,7 +105,7 @@ VCS_OPTS  = -sverilog \
             -full64 \
             -debug_access+all \
             -timescale=1ns/1ps \
-            +incdir+$(TB_DIR) \
+            +incdir+$(TB_DIR)+$(TOP_DIR) \
             +lint=TFIPC-L \
             +v2k \
             -l $(COMP_LOG) \
@@ -106,7 +119,7 @@ RUN_OPTS  = +max_cycles=$(MAX_CYCLES) \
 #---------------------------------------------------------------------
 # Objetivos
 #---------------------------------------------------------------------
-.PHONY: all comp run smoke wave verdi vcd clean files help
+.PHONY: all comp run smoke wave verdi vcd files check clean help
 
 all: run
 
@@ -129,7 +142,7 @@ run: $(SIMV)
 
 ## smoke: prueba de humo, solo DUT + interfaz
 smoke:
-	@$(MAKE) run TOP=top_smoke
+	@$(MAKE) run TOP=pruebaMF
 
 ## wave: corre volcando VPD y abre DVE
 wave: $(SIMV)
@@ -152,6 +165,18 @@ files:
 	@for f in $(COMPILE_SRCS); do echo "   $$f"; done
 	@echo "INCLUDE_SRCS (van por \`include en el top):"
 	@for f in $(INCLUDE_SRCS); do echo "   $$f"; done
+
+## check: verifica que todas las fuentes existan antes de llamar a VCS
+check:
+	@err=0; \
+	for f in $(ALL_SRCS); do \
+	  if [ -f "$$f" ]; then echo "  OK    $$f"; \
+	  else echo "  FALTA $$f"; err=1; fi; \
+	done; \
+	if [ $$err -ne 0 ]; then \
+	  echo ""; echo "Revisar RTL_DIR / TB_DIR / TOP_DIR en el Makefile."; \
+	  exit 1; \
+	fi
 
 ## clean: borra todo lo generado
 clean:
