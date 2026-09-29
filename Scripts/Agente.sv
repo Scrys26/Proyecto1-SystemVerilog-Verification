@@ -22,6 +22,7 @@ class Agente #(                                          // Clase generadora de 
     ) blueprint;                                         // Plantilla a randomizar
 
     int unsigned n_generated;                            // Contador de generadas
+    int unsigned n_txn = 0;
 
     function new(                                        // Constructor del Agente
         int unsigned terminal_id,                        // ID del terminal
@@ -57,7 +58,7 @@ class Agente #(                                          // Clase generadora de 
             BROADCAST                                    // Dirección de broadcast
         ) tr_sb;                                         // Copia enviada al Scoreboard
         $display("[%0t] [AGNT%0d] iniciado",$time,terminal_id); // Muestra inicio del Agente
-        repeat (cfg.n_txn_per_terminal) begin            // Genera cantidad configurada
+        repeat (n_txn > 0 ? n_txn : cfg.n_txn_per_terminal ) begin        // Genera cantidad configurada
 
             if (!blueprint.randomize()) begin            // Randomiza la plantilla
              $fatal(1,"[%0t] [AGNT%0d] fallo randomize()",$time, terminal_id ); // Detiene si falla
