@@ -42,5 +42,6 @@ package Paquete;
     `include "Agente.sv"
     `include "Scoreboard.svh"
     `include "Checker.svh"
+    `include "Ambiente.sv"
 endpackage
 `endif
