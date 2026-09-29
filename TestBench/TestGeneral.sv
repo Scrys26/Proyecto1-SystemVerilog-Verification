@@ -37,7 +37,7 @@ module test_general;
   //Parametros del test
   int unsigned n_txn_min    = 10;      //Rango de la canidad de terminales 
   int unsigned n_txn_max    = 30;
-  int unsigned max_cycles   = 50000;   // Watchdog 
+  int unsigned max_cycles   = 50000;   // death_time 
   int unsigned drain_cycles = 20000;   // limite de espera del drenaje
   bit          dump_waves   = 0;
 
@@ -46,7 +46,7 @@ module test_general;
 
   // Estado de los criterios
   bit c1, c2, c3, c4, c5, c6;
-  bit watchdog_disparo = 0;
+  bit death_time = 0;
   bit drenaje_ok       = 0;
 
   //Procedimiento
@@ -159,7 +159,7 @@ module test_general;
     c5 = (env.chk.n_pop_empty == 0) && (env.total_pop_vacia() == 0);
 
     // C6 - Nada pendiente al finalizar, y la prueba llego a su fin.
-    c6 = (pendientes == 0) && drenaje_ok && !watchdog_disparo;
+    c6 = (pendientes == 0) && drenaje_ok && !death_time;
 
     veredicto = c1 && c2 && c3 && c4 && c5 && c6 &&
                 (env.chk.n_errors == 0);
@@ -218,9 +218,9 @@ module test_general;
                                       int unsigned pendientes);
     $display("---------------------------------------------------------");
     $display(" DIAGNOSTICO");
-    if (watchdog_disparo)
-      $display("   - El watchdog corto la simulacion. Subir +max_cycles.");
-    if (!drenaje_ok && !watchdog_disparo)
+    if (death_time)
+      $display("   - El death_time corto la simulacion. Subir +max_cycles.");
+    if (!drenaje_ok && !death_time)
       $display("   - El bus no dreno en %0d ciclos. Subir +drain_cycles.",
                drain_cycles);
     if (!c1)
@@ -252,14 +252,14 @@ module test_general;
   endfunction
 
   //-------------------------------------------------------------------
-  // Watchdog: corre en paralelo. El primero que llegue a $finish
+  // death_time: corre en paralelo. El primero que llegue a $finish
   // termina la simulacion.
   //-------------------------------------------------------------------
   initial begin
     repeat (max_cycles) @(posedge clk);
-    watchdog_disparo = 1;
+    death_time = 1;
     $display("");
-    $display("[%0t] [TEST] WATCHDOG: se agotaron %0d ciclos",
+    $display("[%0t] [TEST] death_time: se agotaron %0d ciclos",
              $time, max_cycles);
     evaluar_criterios();
     $finish;
