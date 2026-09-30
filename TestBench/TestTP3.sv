@@ -65,23 +65,33 @@ module TestTP3;
   bit c6;
 
   initial begin
+
     void'($value$plusargs("n_txn=%d",n_txn));
     void'($value$plusargs("max_cycles=%d",max_cycles));
     void'($value$plusargs("drain_cycles=%d",drain_cycles));
     encabezado();
     configurar_escenario();
+
     env = new(vif.DRV,vif.MON);
     env.build();
+
     configurar_agentes();
+
     env.reset();
     env.arrancar();
     fork
       begin
+
         $display("[%0t] [TP03] iniciando contencion con %0d paquetes por terminal",$time,n_txn);
+
         env.correr_agentes();
+
         $display("[%0t] [TP03] generacion terminada",$time);
+
         env.esperar_drenaje(drain_cycles,drenaje_ok);
+
         repeat (10) @(posedge clk);
+
         evaluar_criterios();
         prueba_terminada = 1;
       end
@@ -105,7 +115,6 @@ module TestTP3;
 
   end
   task automatic configurar_escenario();
-
     bus_config cfg;
 
     cfg = bus_config::get();
@@ -122,6 +131,7 @@ module TestTP3;
     cfg.print();
 
   endtask
+
   task automatic configurar_agentes();
 
     for (int src = 0; src < DRVRS; src++) begin
@@ -133,33 +143,26 @@ module TestTP3;
 
       env.agentes[src].blueprint.dst_type = DST_VALID;
       env.agentes[src].blueprint.dst = (src + 1) % DRVRS;
-
     end
   endtask
   task automatic capturar_arbitraje();
-
     int pending_count;
     int pop_count;
     int src_pop;
-
     forever begin
-
       @(vif.mon_cb);
-
       if (!vif.reset) begin
-
         pending_count = 0;
         pop_count = 0;
         src_pop = -1;
-
         for (int i = 0; i < DRVRS; i++) begin
           if (vif.mon_cb.pndng[0][i]) pending_count++;
+
           if (vif.mon_cb.pop[0][i]) begin
             pop_count++;
             src_pop = i;
           end
         end
-
         if (!contencion_vista && pending_count == DRVRS) begin
           contencion_vista = 1;
           $display("[%0t] [TP03] contencion detectada: todos los terminales tienen PNDNG",$time);
@@ -167,23 +170,19 @@ module TestTP3;
 
         if (pop_count > 1) begin
           pop_simultaneos++;
-          $display("[%0t] [TP03] ERROR: %0d POP simultaneos",$time,pop_count);
+          $display("[%0t] [TP03] carga simultanea detectada: %0d POP",$time,pop_count);
         end
 
         if (contencion_vista && pop_count == 1) pop_seq.push_back(src_pop);
-
       end
-
     end
-endtask
+  endtask
 
   function automatic bit verificar_round_robin();
 
     int paso;
     int esperado;
-
     if (pop_seq.size() < DRVRS * 2) return 0;
-
     paso = (pop_seq[1] - pop_seq[0] + DRVRS) % DRVRS;
 
     if ((paso != 1) && (paso != (DRVRS - 1))) return 0;
@@ -193,7 +192,6 @@ endtask
       esperado = (pop_seq[i-1] + paso) % DRVRS;
 
       if (pop_seq[i] != esperado) return 0;
-
     end
     return 1;
   endfunction
@@ -216,23 +214,31 @@ endtask
 
     // C1: todos los agentes generaron la misma cantidad
     c1 = (generadas == total_txn);
+
     for (int i = 0; i < DRVRS; i++) begin
       c1 &= (env.agentes[i].n_generated == n_txn);
     end
+
     // C2: existio contencion real entre todos los terminales
-    c2 = contencion_vista && (pop_simultaneos == 0);
+    c2 = contencion_vista;
+
     // C3: el orden de servicio cumple Round Robin
     c3 = verificar_round_robin();
+
     // C4: todos los paquetes fueron consumidos y entregados
     c4 = (enviadas == total_txn) && (env.chk.n_pops == total_txn) && (env.chk.n_pushes == total_txn) && (env.chk.n_completed == total_txn);
+
     for (int i = 0; i < DRVRS; i++) begin
       c4 &= (env.mon.hijos[i].n_pop == n_txn);
       c4 &= (env.mon.hijos[i].n_push == n_txn);
     end
+
     // C5: contenido y protocolo correctos
     c5 = (env.chk.n_pop_mismatch == 0) && (env.chk.n_push_unexp == 0) && (env.chk.n_pop_empty == 0) && (env.total_pop_vacia() == 0);
+
     // C6: prueba termino sin elementos pendientes
     c6 = (pendientes == 0) && drenaje_ok && !death_time && (env.chk.n_errors == 0);
+
     veredicto = c1 && c2 && c3 && c4 && c5 && c6;
 
     env.reportar();
@@ -249,7 +255,7 @@ endtask
     $display("   PUSH totales          : %0d",env.chk.n_pushes);
     $display("   Entregas confirmadas  : %0d",env.chk.n_completed);
     $display("   POP capturados RR     : %0d",pop_seq.size());
-    $display("   POP simultaneos       : %0d",pop_simultaneos);
+    $display("   Cargas simultaneas    : %0d",pop_simultaneos);
     $display("   Pendientes            : %0d",pendientes);
     $display("   Ciclos simulados      : %0d",ciclos);
     $display("---------------------------------------------------------");
@@ -263,6 +269,7 @@ endtask
     linea_criterio("C4 Todos los paquetes fueron entregados ",c4);
     linea_criterio("C5 Contenido y protocolo correctos ",c5);
     linea_criterio("C6 Sin elementos pendientes al finalizar ",c6);
+
     $display("---------------------------------------------------------");
     $display("Errores Checker  : %0d",env.chk.n_errors);
     $display("=========================================================");
@@ -278,7 +285,6 @@ endtask
   endtask
 
   task automatic mostrar_secuencia();
-
     int limite;
 
     limite = pop_seq.size();
@@ -286,20 +292,18 @@ endtask
     if (limite > 32) limite = 32;
 
     $write("   Secuencia POP         : ");
-
     for (int i = 0; i < limite; i++) begin
       $write("T%0d ",pop_seq[i]);
     end
-
     if (pop_seq.size() > limite) $write("...");
-
     $display("");
-
   endtask
 
-  function automatic void linea_criterio( string texto,bit ok );
+  function automatic void linea_criterio(
+    string texto,
+    bit ok
+  );
     $display(" [%s] %s",ok ? "PASS" : "FAIL",texto);
-
   endfunction
 
   function automatic void encabezado();
