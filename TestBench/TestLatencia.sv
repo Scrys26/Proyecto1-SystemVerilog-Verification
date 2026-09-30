@@ -43,7 +43,8 @@ module TestLatencia;
   int unsigned n_txn        = 50;
   int unsigned max_cycles   = 100000;
   int unsigned drain_cycles = 50000;
-
+  int unsigned min_delay = 0;
+  int unsigned max_delay = 5;
   string csv_nombre = "latencias.csv";
 
   bit drenaje_ok       = 0;
@@ -66,6 +67,8 @@ module TestLatencia;
     void'($value$plusargs("max_cycles=%d",max_cycles));
     void'($value$plusargs("drain_cycles=%d",drain_cycles));
     void'($value$plusargs("csv=%s",csv_nombre));
+    void'($value$plusargs("min_delay=%d", min_delay));
+    void'($value$plusargs("max_delay=%d", max_delay));
     encabezado();
     configurar_escenario();
 
@@ -123,10 +126,11 @@ module TestLatencia;
     cfg.wt_invalid      = 0;
     cfg.allow_self_send = 0;
 
-    cfg.min_delay = 0;
-    cfg.max_delay = 5;
+    cfg.min_delay = min_delay;
+    cfg.max_delay = max_delay;
 
     cfg.validate();
+    cfg.n_txn_per_terminal = n_txn;
     cfg.print();
 
   endtask
@@ -182,7 +186,7 @@ module TestLatencia;
     $display("   Transacciones/terminal : %0d",n_txn);
     $display("   Transacciones totales  : %0d",esperadas);
     $display("   Archivo CSV            : %s",csv_nombre);
-    $display("   Delay aleatorio        : [0:5]");
+    $display("   Delay aleatorio        : [%0d:%0d]", min_delay, max_delay);
     $display("   PCKG_SZ                : %0d",PCKG_SZ);
     $display("---------------------------------------------------------");
     $display("   Generadas              : %0d",generadas);

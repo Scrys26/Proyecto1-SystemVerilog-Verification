@@ -23,6 +23,8 @@ N_TXN        ?= 50
 MAX_CYCLES   ?= 10000
 DRAIN_CYCLES ?= 5000
 
+MIN_DELAY ?= 0
+MAX_DELAY ?= 5
 
 # ------------------------------------------------------------
 # Directorios
@@ -38,7 +40,16 @@ AUX_DIR    ?= $(BUILD_DIR)/aux
 # ------------------------------------------------------------
 
 CSV ?= $(REPORT_DIR)/latencias.csv
+# ------------------------------------------------------------
+# GNUplot
+# ------------------------------------------------------------
 
+GNUPLOT_SCRIPT ?= Scripts/histograma.gnuplot
+
+CSV_BASE = $(basename $(notdir $(CSV)))
+
+FREQ_FILE = $(REPORT_DIR)/frecuencias_$(CSV_BASE).dat
+HISTOGRAMA = $(REPORT_DIR)/histograma_$(CSV_BASE).png
 
 # ------------------------------------------------------------
 # Nombre y ubicacion del ejecutable VCS
@@ -114,6 +125,8 @@ RUN_ARGS += \
 	+n_txn=$(N_TXN) \
 	+max_cycles=$(MAX_CYCLES) \
 	+drain_cycles=$(DRAIN_CYCLES) \
+	+min_delay=$(MIN_DELAY) \
+	+max_delay=$(MAX_DELAY) \
 	+csv=$(CSV)
 
 endif
@@ -123,7 +136,7 @@ endif
 # Targets
 # ------------------------------------------------------------
 
-.PHONY: all check comp run reports clean clean_reports help
+.PHONY: all check comp run reports plot  clean clean_reports help
 
 
 # ============================================================
@@ -263,7 +276,52 @@ run: comp
 
 	@grep -E "ERRORES|RESULTADO|\[PASS\]|\[FAIL\]" \
 		$(RUN_LOG) || true
+# ============================================================
+# Generar histograma de latencias
+# ============================================================
+# ============================================================
+# Generar histograma de latencias
+# ============================================================
 
+plot: reports
+	@echo ""
+	@echo "============================================================"
+	@echo " Generando histograma de latencias"
+	@echo "============================================================"
+	@echo "CSV         : $(CSV)"
+	@echo "Frecuencias : $(FREQ_FILE)"
+	@echo "Histograma  : $(HISTOGRAMA)"
+	@echo ""
+
+	@test -f "$(CSV)" || \
+		(echo "ERROR: No existe $(CSV)" && exit 1)
+
+	@test -f "$(GNUPLOT_SCRIPT)" || \
+		(echo "ERROR: No existe $(GNUPLOT_SCRIPT)" && exit 1)
+
+	@command -v gnuplot >/dev/null 2>&1 || \
+		(echo "ERROR: GNUplot no esta disponible" && exit 1)
+
+	@rm -f "$(FREQ_FILE)"
+	@rm -f "$(HISTOGRAMA)"
+
+	gnuplot \
+		-e "CSV_FILE='$(CSV)'; FREQ_FILE='$(FREQ_FILE)'; OUTPUT_FILE='$(HISTOGRAMA)'" \
+		$(GNUPLOT_SCRIPT)
+
+	@test -s "$(HISTOGRAMA)" || \
+		(echo ""; \
+		 echo "ERROR: GNUplot termino pero no genero $(HISTOGRAMA)"; \
+		 exit 1)
+
+	@echo ""
+	@echo "============================================================"
+	@echo " Histograma generado correctamente"
+	@echo "============================================================"
+	@echo "CSV         : $(CSV)"
+	@echo "Frecuencias : $(FREQ_FILE)"
+	@echo "Histograma  : $(HISTOGRAMA)"
+	@echo "============================================================"
 
 # ============================================================
 # Limpiar archivos de compilacion
