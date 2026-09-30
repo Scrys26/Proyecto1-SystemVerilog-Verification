@@ -216,3 +216,9 @@ tamaño de paquete y el rango de delay.
 No es necesario escribir `N_TXN` y `SEED` si el `Makefile` ya tiene esos
 valores por defecto, si estos espacios no se especifican la prueba se realizará con 200 paquetes por defecto.
 
+### Ejemplo de ejecucion corriente
+
+``` bash
+make run TOP=TestLatencia 
+```
+solo es necesario cambiar "TestLatencia" por el nombre de cualquiera de las otras pruebas
