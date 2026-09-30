@@ -74,6 +74,7 @@ module TestTP1;
     // Construccion del ambiente
     env = new(vif.DRV, vif.MON);
     env.build();
+    env.chk.abrir_csv("latencias_TP1.csv");
     configurar_agente();
     env.reset();
 
@@ -94,6 +95,7 @@ module TestTP1;
         repeat (10) @(posedge clk);
 
         evaluar_criterios();
+        env.chk.cerrar_csv();
 
         prueba_terminada = 1;
 
