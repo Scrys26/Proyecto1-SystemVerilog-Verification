@@ -23,6 +23,7 @@ class Ambiente #(
   mailbox #(txn_t)     agnt2drv;   // agentes  -> driver
   mailbox #(txn_t)     agnt2sb;    // agentes  -> scoreboard
   mailbox #(mon_txn_t) mon2chk;    // monitor  -> checker
+  mailbox #(txn_t) drv2sb;
 
  //Declaracion de los handles
   bus_config cfg;
@@ -44,11 +45,12 @@ class Ambiente #(
   function void build();
     agnt2drv = new();
     agnt2sb  = new();
+    drv2sb   = new();
     mon2chk  = new();
 
-    drv = new(vif_drv, agnt2drv, 0);
+    drv = new(vif_drv, agnt2drv, 0, drv2sb);
     mon = new(vif_mon, mon2chk);
-    sb  = new(agnt2sb);
+    sb  = new(agnt2sb, drv2sb);
     chk = new(mon2chk, sb);   // el checker consulta al scoreboard
 
     foreach (agentes[i]) agentes[i] = new(i, agnt2drv, agnt2sb);

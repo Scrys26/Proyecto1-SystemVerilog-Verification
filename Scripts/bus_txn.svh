@@ -31,6 +31,8 @@ class bus_txn #(                                         // Clase de transacció
 
     // Paquete final
     bit [PCKG_SZ-1:0] packet;                            // Paquete completo
+    // Instante en que el Driver introduce el paquete en la FIFO de entrada
+    time t_envio;
 
     // Configuración compartida
     bus_config cfg;                                      // Configuración global
@@ -75,7 +77,8 @@ class bus_txn #(                                         // Clase de transacció
     function new(int unsigned src_id = 0);               // Constructor de la transacción
         src = src_id;                                    // Asigna terminal origen
         cfg = bus_config::get();                         // Obtiene configuración global
-        packet = '0;                                     // Inicializa paquete
+        packet = '0;  
+        t_envio = 0;                                   // Inicializa paquete
     endfunction                                          // Fin del constructor
 
     // Despés de randomizar
@@ -106,6 +109,7 @@ class bus_txn #(                                         // Clase de transacció
         c.payload  = payload;                            // Copia payload
         c.delay    = delay;                              // Copia retardo
         c.packet   = packet;                             // Copia paquete
+        c.t_envio = t_envio;
         return c;                                        // Retorna la copia
     endfunction                                          // Fin de copy
 

@@ -1,5 +1,5 @@
 # ============================================================
-# Makefile - Proyecto 1 SystemVerilog Verification
+# Proyecto 1 SystemVerilog Verification
 # ============================================================
 
 
@@ -26,6 +26,7 @@ DRAIN_CYCLES ?= 5000
 MIN_DELAY ?= 0
 MAX_DELAY ?= 5
 
+
 # ------------------------------------------------------------
 # Directorios
 # ------------------------------------------------------------
@@ -40,6 +41,8 @@ AUX_DIR    ?= $(BUILD_DIR)/aux
 # ------------------------------------------------------------
 
 CSV ?= $(REPORT_DIR)/latencias.csv
+
+
 # ------------------------------------------------------------
 # GNUplot
 # ------------------------------------------------------------
@@ -48,8 +51,8 @@ GNUPLOT_SCRIPT ?= Scripts/histograma.gnuplot
 
 CSV_BASE = $(basename $(notdir $(CSV)))
 
-FREQ_FILE = $(REPORT_DIR)/frecuencias_$(CSV_BASE).dat
 HISTOGRAMA = $(REPORT_DIR)/histograma_$(CSV_BASE).png
+
 
 # ------------------------------------------------------------
 # Nombre y ubicacion del ejecutable VCS
@@ -136,7 +139,7 @@ endif
 # Targets
 # ------------------------------------------------------------
 
-.PHONY: all check comp run reports plot  clean clean_reports help
+.PHONY: all check comp run reports plot clean clean_reports help
 
 
 # ============================================================
@@ -235,6 +238,8 @@ run: comp
 
 	@if [ "$(TOP)" = "TestLatencia" ]; then \
 		echo "    N_TXN=$(N_TXN)"; \
+		echo "    MIN_DELAY=$(MIN_DELAY)"; \
+		echo "    MAX_DELAY=$(MAX_DELAY)"; \
 		echo "    MAX_CYCLES=$(MAX_CYCLES)"; \
 		echo "    DRAIN_CYCLES=$(DRAIN_CYCLES)"; \
 		echo "    CSV=$(CSV)"; \
@@ -276,9 +281,8 @@ run: comp
 
 	@grep -E "ERRORES|RESULTADO|\[PASS\]|\[FAIL\]" \
 		$(RUN_LOG) || true
-# ============================================================
-# Generar histograma de latencias
-# ============================================================
+
+
 # ============================================================
 # Generar histograma de latencias
 # ============================================================
@@ -288,9 +292,8 @@ plot: reports
 	@echo "============================================================"
 	@echo " Generando histograma de latencias"
 	@echo "============================================================"
-	@echo "CSV         : $(CSV)"
-	@echo "Frecuencias : $(FREQ_FILE)"
-	@echo "Histograma  : $(HISTOGRAMA)"
+	@echo "CSV        : $(CSV)"
+	@echo "Histograma : $(HISTOGRAMA)"
 	@echo ""
 
 	@test -f "$(CSV)" || \
@@ -302,11 +305,10 @@ plot: reports
 	@command -v gnuplot >/dev/null 2>&1 || \
 		(echo "ERROR: GNUplot no esta disponible" && exit 1)
 
-	@rm -f "$(FREQ_FILE)"
 	@rm -f "$(HISTOGRAMA)"
 
 	gnuplot \
-		-e "CSV_FILE='$(CSV)'; FREQ_FILE='$(FREQ_FILE)'; OUTPUT_FILE='$(HISTOGRAMA)'" \
+		-e "CSV_FILE='$(CSV)'; OUT_FILE='$(HISTOGRAMA)'" \
 		$(GNUPLOT_SCRIPT)
 
 	@test -s "$(HISTOGRAMA)" || \
@@ -318,10 +320,10 @@ plot: reports
 	@echo "============================================================"
 	@echo " Histograma generado correctamente"
 	@echo "============================================================"
-	@echo "CSV         : $(CSV)"
-	@echo "Frecuencias : $(FREQ_FILE)"
-	@echo "Histograma  : $(HISTOGRAMA)"
+	@echo "CSV        : $(CSV)"
+	@echo "Histograma : $(HISTOGRAMA)"
 	@echo "============================================================"
+
 
 # ============================================================
 # Limpiar archivos de compilacion
@@ -329,6 +331,7 @@ plot: reports
 # Conserva:
 #   Reportes/*.log
 #   Reportes/*.csv
+#   Reportes/*.png
 #
 # Elimina:
 #   Reportes/build/
@@ -359,7 +362,7 @@ clean:
 
 	@echo ""
 	@echo "=== Limpieza terminada ==="
-	@echo "Los logs y CSV dentro de $(REPORT_DIR) NO fueron eliminados."
+	@echo "Los logs, CSV y PNG dentro de $(REPORT_DIR) NO fueron eliminados."
 
 
 # ============================================================
@@ -402,8 +405,22 @@ help:
 	@echo ""
 	@echo "  make run TOP=TestLatencia N_TXN=100 SEED=20"
 	@echo ""
+	@echo "  make run TOP=TestLatencia N_TXN=100 SEED=20 MIN_DELAY=20 MAX_DELAY=100"
+	@echo ""
 	@echo "  make run TOP=TestLatencia \\"
-	@echo "       CSV=Reportes/latencias_seed20.csv"
+	@echo "       N_TXN=100 \\"
+	@echo "       SEED=20 \\"
+	@echo "       MIN_DELAY=20 \\"
+	@echo "       MAX_DELAY=100 \\"
+	@echo "       MAX_CYCLES=25000 \\"
+	@echo "       DRAIN_CYCLES=20000 \\"
+	@echo "       CSV=Reportes/latencias_delay20_100.csv"
+	@echo ""
+	@echo "GENERAR HISTOGRAMA"
+	@echo ""
+	@echo "  make plot"
+	@echo ""
+	@echo "  make plot CSV=Reportes/latencias_delay20_100.csv"
 	@echo ""
 	@echo "OTROS COMANDOS"
 	@echo ""
@@ -415,15 +432,16 @@ help:
 	@echo ""
 	@echo "  make clean"
 	@echo "      Eliminar archivos de compilacion."
-	@echo "      Conserva logs y CSV."
+	@echo "      Conserva logs, CSV y PNG."
 	@echo ""
 	@echo "  make clean_reports"
 	@echo "      Eliminar toda la carpeta Reportes."
 	@echo ""
 	@echo "ARCHIVOS GENERADOS"
 	@echo ""
-	@echo "  Logs      -> $(REPORT_DIR)/"
-	@echo "  CSV       -> $(REPORT_DIR)/"
-	@echo "  Build VCS -> $(BUILD_DIR)/"
+	@echo "  Logs       -> $(REPORT_DIR)/"
+	@echo "  CSV        -> $(REPORT_DIR)/"
+	@echo "  Histogramas-> $(REPORT_DIR)/"
+	@echo "  Build VCS  -> $(BUILD_DIR)/"
 	@echo ""
 	@echo "============================================================"

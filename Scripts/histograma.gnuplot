@@ -1,47 +1,114 @@
 # ============================================================
-# Histograma de latencia
+# Histograma de retraso total de paquetes
 # ============================================================
 
 set datafile separator ","
 
-# Crear archivo de frecuencias
-set table FREQ_FILE
-plot CSV_FILE using 8:(1) smooth frequency
-unset table
+# ------------------------------------------------------------
+# Salida
+# ------------------------------------------------------------
 
-# El archivo de frecuencias usa espacios
-unset datafile separator
+set terminal pngcairo enhanced size 1400,800 font "Sans,14"
+set output OUT_FILE
 
-# Salida PNG
-set terminal pngcairo size 1200,700 enhanced font "Arial,12"
-set output OUTPUT_FILE
+# ------------------------------------------------------------
+# Estadisticas del CSV
+# Columna 8 = retraso total en ciclos
+# ------------------------------------------------------------
 
-set title "Histograma de Latencia de Paquetes"
-set xlabel "Latencia (ciclos de reloj)"
-set ylabel "Cantidad de paquetes"
+stats CSV_FILE every ::1 using 8 nooutput
 
-set xrange [*:*]
+MEDIA   = STATS_mean
+MINIMO  = STATS_min
+MAXIMO  = STATS_max
+TOTAL   = STATS_records
+
+# ------------------------------------------------------------
+# Configuracion del histograma
+# ------------------------------------------------------------
+
+BIN_WIDTH = 100
+
+bin(x) = BIN_WIDTH * floor(x/BIN_WIDTH) + BIN_WIDTH/2.0
+
+set boxwidth BIN_WIDTH*0.88 absolute
+set style fill solid 0.90 border rgb "#174A7E"
+
+# ------------------------------------------------------------
+# Titulos
+# ------------------------------------------------------------
+
+set title "Histograma del Retraso Total de Paquetes" \
+    font "Sans,18"
+
+set xlabel "Retraso total (ciclos de reloj)" \
+    font "Sans,14"
+
+set ylabel "Cantidad de paquetes" \
+    font "Sans,14"
+
+# ------------------------------------------------------------
+# Ejes
+# ------------------------------------------------------------
+
+set xrange [0:*]
 set yrange [0:*]
 
-set offsets graph 0.03, graph 0.03, graph 0.10, graph 0
+set xtics 250
+set ytics 5
 
-# Rango vertical automatico
-set yrange [0:*]
+set tics out
+set border 3 back
 
-# Dejar 10% de espacio arriba para las etiquetas
-set offsets graph 0, graph 0, graph 0.10, graph 0
+# ------------------------------------------------------------
+# Cuadricula
+# ------------------------------------------------------------
 
-set xtics 5
-set ytics 20
+set grid ytics back \
+    lc rgb "#D9D9D9" \
+    dt 2 \
+    lw 1
 
-set grid ytics
+# ------------------------------------------------------------
+# Linea de latencia promedio
+# ------------------------------------------------------------
 
-set boxwidth 0.8
-set style fill solid 0.7 border -1
+set arrow 1 \
+    from MEDIA, graph 0 \
+    to MEDIA, graph 1 \
+    nohead \
+    dt 2 \
+    lw 2 \
+    lc rgb "#D62728"
 
-set key off
+set label 1 \
+    sprintf("Promedio: %.1f ciclos", MEDIA) \
+    at MEDIA, graph 0.96 \
+    offset 1,0 \
+    textcolor rgb "#D62728"
 
-plot FREQ_FILE using 1:2 with boxes, \
-     "" using 1:2:(sprintf("%.0f",$2)) with labels offset char 0,1
+# ------------------------------------------------------------
+# Informacion estadistica
+# ------------------------------------------------------------
 
-unset output
+set label 2 \
+    sprintf("Paquetes: %d   Min: %.0f   Max: %.0f ciclos", \
+            TOTAL, MINIMO, MAXIMO) \
+    at graph 0.02, graph 0.95 \
+    front
+
+# ------------------------------------------------------------
+# Sin leyenda
+# ------------------------------------------------------------
+
+unset key
+
+# ------------------------------------------------------------
+# Histograma
+# ------------------------------------------------------------
+
+plot CSV_FILE every ::1 \
+    using (bin(column(8))):(1.0) \
+    smooth frequency \
+    with boxes \
+    lc rgb "#1E88E5"

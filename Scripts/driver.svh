@@ -12,6 +12,7 @@ class fifo_in #(
   int          id;                        // Numero de device
 
   mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) padre2hijo; // Mailbox de padre a hijo
+  mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) drv2sb;
 
   bus_txn #(PCKG_SZ, DRVRS, BROADCAST) fifo[$];               // Creacion de la cola
 
@@ -21,13 +22,16 @@ class fifo_in #(
   int unsigned n_pop_vacia = 0;           //pop sin dato
 
   // Constructor
-  function new (int id,
-                virtual bus_if #(BITS, DRVRS, PCKG_SZ).DRV vif,
-                int unsigned profundidad = 0);
+  function new(
+    int id,
+    virtual bus_if #(BITS, DRVRS, PCKG_SZ).DRV vif,
+    int unsigned profundidad = 0,
+    mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) drv2sb = null);
     this.id          = id;
     this.vif         = vif;
     this.profundidad = profundidad;
-    this.padre2hijo  = new(); // El hijo crea su propio mailbox privado
+    this.drv2sb      = drv2sb;
+    this.padre2hijo  = new();
   endfunction
 
   // Crea los dos hilos de la terminal
@@ -52,14 +56,18 @@ class fifo_in #(
         n_llena++;
         @(vif.drv_cb);
       end
-
-      // Cuando haya espacio mete el dato en la fifo
+      // Este es el instante real en que el paquete entr
+      // a la FIFO de entrada del sistema.
+      tr.t_envio = $time;
       fifo.push_back(tr);
-      en_espera--; // Ya entro a la FIFO, deja de estar en transito
+      // Informar al Scoreboard el instante de envio.
+      // Se envia una copia para mantener independencia entre componentes.
+if (drv2sb != null)
+    drv2sb.put(tr.copy());
 
-      //<- Reflejar de inmediato: si la FIFO estaba vacia, pndng debe
-      //<- subir en este mismo ciclo y no esperar al proximo atender().
-      presentar();
+en_espera--;
+
+presentar();
     end
   endtask
 
@@ -122,22 +130,25 @@ class driver #(
 
   virtual bus_if #(BITS, DRVRS, PCKG_SZ).DRV vif;   // handle a la interfaz
   mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) agnt2drv; // entrada desde el agente
-
+  mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) drv2sb;
   fifo_in #(BITS, PCKG_SZ, DRVRS, BROADCAST) hijos[DRVRS];  // un hijo por terminal
 
   int unsigned ciclos_reset  = 5;
   int unsigned n_fuera_rango = 0;         
 
   // Constructor
-  function new(virtual bus_if #(BITS, DRVRS, PCKG_SZ).DRV vif,
-               mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) agnt2drv,
-               int unsigned profundidad = 0);
+  function new(
+    virtual bus_if #(BITS, DRVRS, PCKG_SZ).DRV vif,
+    mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) agnt2drv,
+    int unsigned profundidad = 0,
+    mailbox #(bus_txn #(PCKG_SZ, DRVRS, BROADCAST)) drv2sb = null);
 
     this.vif      = vif;
     this.agnt2drv = agnt2drv;
+    this.drv2sb   = drv2sb;
 
-    // Crea cada hijo en su device
-    foreach (hijos[i]) hijos[i] = new(i, vif, profundidad);
+    foreach (hijos[i])
+        hijos[i] = new(i, vif, profundidad, drv2sb);
   endfunction
 
   // Reset de la interfaz

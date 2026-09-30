@@ -1,268 +1,570 @@
-class Scoreboard #(                                       
-    parameter int PCKG_SZ = 16,                          // Tamaño del paquete
-    parameter int DRVRS   = 4,                           // Número de terminales
-    parameter bit [7:0] BROADCAST = 8'hFF,               // Dirección de broadcast
-    parameter bit BROADCAST_TO_SELF = 1'b0               // Permite broadcast al origen
+class Scoreboard #(
+    parameter int PCKG_SZ = 16,
+    parameter int DRVRS = 4,
+    parameter bit [7:0] BROADCAST = 8'hFF,
+    parameter bit BROADCAST_TO_SELF = 1'b0
 );
 
+    // ============================================================
+    // MAILBOXES
+    // ============================================================
+
     // Agent -> Scoreboard
-    mailbox #(                                            // Mailbox desde el Agente
-        bus_txn #(PCKG_SZ, DRVRS, BROADCAST)              // Tipo de transacción
-    ) agnt2sb;                                            // Canal Agente-Scoreboard
+    mailbox #(
+        bus_txn #(PCKG_SZ,DRVRS,BROADCAST)
+    ) agnt2sb;
 
-    bus_txn #(                                            // Transacciones esperadas
-        PCKG_SZ,                                          // Tamaño del paquete
-        DRVRS,                                            // Número de terminales
-        BROADCAST                                         // Dirección de broadcast
-    ) fifo_esperada [DRVRS][$];                           // Colas esperadas por origen
+    // Driver -> Scoreboard
+    // Se utiliza para recibir el instante real de envio.
+    mailbox #(
+        bus_txn #(PCKG_SZ,DRVRS,BROADCAST)
+    ) drv2sb;
 
-    bus_expected_item #(PCKG_SZ) entregas_pendientes[$];  // Entregas aún no observadas
 
-    // Estadisticas del modelo
-    int unsigned n_recibidas;                             // Transacciones recibidas
-    int unsigned n_consumidas;                            // Transacciones consumidas
-    int unsigned n_entregas_creadas;                      // Entregas esperadas creadas
-    int unsigned n_entregas_retiradas;                    // Entregas confirmadas
-    int unsigned n_broadcast;                             // Broadcast procesados
-    int unsigned n_invalidas;                             // Destinos inválidos
-    int unsigned n_src_fuera_rango;                       // Orígenes fuera de rango
+    // ============================================================
+    // MODELO ESPERADO
+    // ============================================================
 
-    function new(                                         // Constructor del Scoreboard
-        mailbox #(                                        // Mailbox del Agente
-            bus_txn #(PCKG_SZ, DRVRS, BROADCAST)          // Tipo de transacción
-        ) agnt2sb                                         // Canal desde Agente
+    // FIFO esperada por cada terminal de origen.
+    bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) fifo_esperada [DRVRS][$];
+
+    // Entregas que esperamos observar como PUSH.
+    bus_expected_item #(
+        PCKG_SZ
+    ) entregas_pendientes[$];
+
+
+    // ============================================================
+    // TIEMPOS DE ENVIO
+    // ============================================================
+
+    // Guarda:
+    //
+    // txn_id -> tiempo en que el Driver introdujo el paquete
+    //           en la FIFO de entrada.
+    //
+    time t_envio_por_id[int unsigned];
+
+
+    // ============================================================
+    // ESTADISTICAS
+    // ============================================================
+
+    int unsigned n_recibidas = 0;
+    int unsigned n_consumidas = 0;
+
+    int unsigned n_entregas_creadas = 0;
+    int unsigned n_entregas_retiradas = 0;
+
+    int unsigned n_broadcast = 0;
+    int unsigned n_invalidas = 0;
+
+    int unsigned n_src_fuera_rango = 0;
+
+    int unsigned n_envios_registrados = 0;
+
+
+    // ============================================================
+    // CONSTRUCTOR
+    // ============================================================
+
+    function new(
+        mailbox #(
+            bus_txn #(PCKG_SZ,DRVRS,BROADCAST)
+        ) agnt2sb,
+
+        mailbox #(
+            bus_txn #(PCKG_SZ,DRVRS,BROADCAST)
+        ) drv2sb = null
     );
-        this.agnt2sb = agnt2sb;                           // Guarda mailbox recibido
 
-        n_recibidas          = 0;                         // Inicializa recibidas
-        n_consumidas         = 0;                         // Inicializa consumidas
-        n_entregas_creadas   = 0;                         // Inicializa entregas creadas
-        n_entregas_retiradas = 0;                         // Inicializa retiradas
-        n_broadcast          = 0;                         // Inicializa broadcast
-        n_invalidas          = 0;                         // Inicializa inválidas
-        n_src_fuera_rango    = 0;                         // Inicializa orígenes inválidos
+        this.agnt2sb = agnt2sb;
+        this.drv2sb  = drv2sb;
 
-    endfunction                                           // Fin del constructor
+    endfunction
 
-    task run();                                           // Ejecuta recepción continua
 
-        bus_txn #(                                        // Transacción recibida
-            PCKG_SZ,                                      // Tamaño del paquete
-            DRVRS,                                        // Número de terminales
-            BROADCAST                                     // Dirección de broadcast
-        ) tr;                                             // Transacción del Agente
+    // ============================================================
+    // RUN
+    // ============================================================
 
-        $display(  "[%0t] [SB] iniciado", $time);
+    task run();
 
-        forever begin                                     // Recibe transacciones siempre
-            agnt2sb.get(tr);                              // Obtiene transacción del Agente
+        $display(
+            "[%0t] [SB] iniciado",
+            $time
+        );
 
-            if (tr.src >= DRVRS) begin                    // Valida origen
+        fork
 
-                n_src_fuera_rango++;                      // Cuenta origen inválido
+            recibir_agente();
 
-                $display("[%0t] [SB] transaccion ignorada: src=%0d fuera de rango",$time,tr.src); // Reporta origen inválido
+            begin
+                if (drv2sb != null)
+                    recibir_envios();
+            end
+
+        join
+
+    endtask
+
+
+    // ============================================================
+    // AGENT -> SCOREBOARD
+    // ============================================================
+
+    task recibir_agente();
+
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr;
+
+        forever begin
+
+            agnt2sb.get(tr);
+
+            if (tr.src >= DRVRS) begin
+
+                n_src_fuera_rango++;
+
+                $display(
+                    "[%0t] [SB][ERROR] src=%0d fuera de rango",
+                    $time,
+                    tr.src
+                );
+
             end
             else begin
-                fifo_esperada[tr.src].push_back(tr);      // Guarda en cola esperada
-                n_recibidas++;                            // Incrementa recibidas
+
+                fifo_esperada[tr.src].push_back(tr);
+
+                n_recibidas++;
+
             end
-        end
-    endtask                                               // Fin de run
 
-    function bus_txn #(                                   // Consulta frente esperado
-        PCKG_SZ,                                          // Tamaño del paquete
-        DRVRS,                                            // Número de terminales
-        BROADCAST                                         // Dirección de broadcast
-    ) ver_frente(int unsigned src);                       // Origen a consultar
-
-        if (src >= DRVRS) begin                           // Valida origen
-            return null;                                  // Retorna nulo si es inválido
-        end
-        if (fifo_esperada[src].size() == 0) begin         // Verifica cola vacía
-            return null;                                  // Retorna nulo si está vacía
-        end
-        return fifo_esperada[src][0];                     // Retorna primer elemento
-
-    endfunction                                           // Fin de ver_frente
-
-    function bus_txn #(                                   // Consume frente esperado
-        PCKG_SZ,                                          // Tamaño del paquete
-        DRVRS,                                            // Número de terminales
-        BROADCAST                                         // Dirección de broadcast
-    ) consumir_frente(int unsigned src);                  // Origen a consumir
-
-        bus_txn #(                                        // Transacción consumida
-            PCKG_SZ,                                      // Tamaño del paquete
-            DRVRS,                                        // Número de terminales
-            BROADCAST                                     // Dirección de broadcast
-        ) tr;                                             // Elemento extraído
-
-        if (src >= DRVRS) begin                           // Valida origen
-            return null;                                  // Retorna nulo si es inválido
-        end
-        if (fifo_esperada[src].size() == 0) begin         // Verifica cola vacía
-            return null;                                  // Retorna nulo si no hay datos
         end
 
-        tr = fifo_esperada[src].pop_front();              // Extrae primer elemento
-        n_consumidas++;                                   // Incrementa consumidas
+    endtask
 
-        return tr;                                        // Retorna transacción consumida
 
-    endfunction                                           // Fin de consumir_frente
+    // ============================================================
+    // DRIVER -> SCOREBOARD
+    // ============================================================
 
-    function void agregar_entrega(                        // Agrega entrega esperada
-        bus_txn #(                                        // Transacción original
-            PCKG_SZ,                                      // Tamaño del paquete
-            DRVRS,                                        // Número de terminales
-            BROADCAST                                     // Dirección de broadcast
-        ) tr,
+    task recibir_envios();
 
-        int unsigned dst,                                 // Destino esperado
-        time t_pop,                                       // Tiempo del POP
-        bit is_broadcast                                  // Indica si es broadcast
-    );
-        bus_expected_item #(PCKG_SZ) item;                // Entrega esperada
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr;
 
-        item = new();                                     // Crea nueva entrega
-        item.txn_id       = tr.id;                        // Guarda ID de transacción
-        item.src          = tr.src;                       // Guarda origen
-        item.dst          = dst;                          // Guarda destino
-        item.packet       = tr.packet;                    // Guarda paquete
-        item.t_pop        = t_pop;                        // Guarda tiempo de POP
-        item.is_broadcast = is_broadcast;                 // Guarda tipo de entrega
+        forever begin
 
-        entregas_pendientes.push_back(item);              // Añade entrega pendiente
+            drv2sb.get(tr);
 
-        n_entregas_creadas++;                             // Incrementa creadas
+            t_envio_por_id[tr.id] = tr.t_envio;
 
-    endfunction                                           // Fin de agregar_entrega
+            n_envios_registrados++;
 
-    function void esperar_entrega(                        // Genera entregas esperadas
-        bus_txn #(                                        // Transacción consumida
-            PCKG_SZ,                                      // Tamaño del paquete
-            DRVRS,                                        // Número de terminales
-            BROADCAST                                     // Dirección de broadcast
-        ) tr,
+        end
 
-        time t_pop                                        // Tiempo del POP
+    endtask
+
+
+    // ============================================================
+    // OBTENER TIEMPO DE ENVIO
+    // ============================================================
+
+    function bit obtener_t_envio(
+        input int unsigned txn_id,
+        output time t_envio
     );
 
-        bit [7:0] dst;                                    // Destino extraído
+        if (t_envio_por_id.exists(txn_id)) begin
 
-        if (tr == null) begin                             // Verifica transacción válida
-            return;                                       // Sale si es nula
+            t_envio = t_envio_por_id[txn_id];
+
+            return 1'b1;
+
         end
-        dst = tr.packet[PCKG_SZ-1 -: 8];                  // Extrae destino del paquete
-        // Broadcast
-        if (dst == BROADCAST) begin                       // Detecta broadcast
-            n_broadcast++;                                // Incrementa broadcast
 
-            for (int d = 0; d < DRVRS; d++) begin        // Recorre destinos
+        t_envio = 0;
 
-                if (BROADCAST_TO_SELF || (d != tr.src)) begin // Decide envío al origen
-                    agregar_entrega(  tr,d, t_pop,1'b1);
+        return 1'b0;
+
+    endfunction
+
+
+    // ============================================================
+    // VER FRENTE DE FIFO ESPERADA
+    // ============================================================
+
+    function bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) ver_frente(
+        input int src
+    );
+
+        if (src < 0 || src >= DRVRS)
+            return null;
+
+        if (fifo_esperada[src].size() == 0)
+            return null;
+
+        return fifo_esperada[src][0];
+
+    endfunction
+
+
+    // ============================================================
+    // CONSUMIR FRENTE DE FIFO
+    // ============================================================
+
+    function bus_txn #(
+        PCKG_SZ,
+        DRVRS,
+        BROADCAST
+    ) consumir_frente(
+        input int src
+    );
+
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr;
+
+        if (src < 0 || src >= DRVRS)
+            return null;
+
+        if (fifo_esperada[src].size() == 0)
+            return null;
+
+        tr = fifo_esperada[src].pop_front();
+
+        n_consumidas++;
+
+        return tr;
+
+    endfunction
+
+
+    // ============================================================
+    // CREAR ENTREGAS ESPERADAS DESPUES DEL POP
+    // ============================================================
+
+    function void esperar_entrega(
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr,
+
+        time t_pop
+    );
+
+        bit [7:0] dst;
+
+        dst = tr.packet[PCKG_SZ-1 -: 8];
+
+
+        // --------------------------------------------------------
+        // BROADCAST
+        // --------------------------------------------------------
+
+        if (dst == BROADCAST) begin
+
+            n_broadcast++;
+
+            for (int d = 0; d < DRVRS; d++) begin
+
+                if (BROADCAST_TO_SELF || d != tr.src) begin
+
+                    agregar_entrega(
+                        tr,
+                        d,
+                        t_pop,
+                        1'b1
+                    );
+
                 end
+
             end
+
         end
-        // Transferencia punto a punto valida
-        else if (dst < DRVRS) begin                     
-            agregar_entrega( tr, dst, t_pop,  1'b0 );
+
+
+        // --------------------------------------------------------
+        // DESTINO VALIDO
+        // --------------------------------------------------------
+
+        else if (dst < DRVRS) begin
+
+            agregar_entrega(
+                tr,
+                dst,
+                t_pop,
+                1'b0
+            );
+
         end
-        // Destino invalido: no se espera ningun push
+
+
+        // --------------------------------------------------------
+        // DESTINO INVALIDO
+        // --------------------------------------------------------
+
         else begin
-            n_invalidas++;                                // Cuenta destino inválido
+
+            n_invalidas++;
+
         end
 
-    endfunction                                           // Fin de esperar_entrega
-    function int buscar_entrega(                          // Busca entrega pendiente
-        int unsigned dst,                                 // Destino observado
-        logic [PCKG_SZ-1:0] packet                        // Paquete observado
+    endfunction
+
+
+    // ============================================================
+    // AGREGAR ENTREGA PENDIENTE
+    // ============================================================
+
+    function void agregar_entrega(
+        bus_txn #(
+            PCKG_SZ,
+            DRVRS,
+            BROADCAST
+        ) tr,
+
+        int dst,
+
+        time t_pop,
+
+        bit is_broadcast
     );
 
-        foreach (entregas_pendientes[i]) begin            // Recorre entregas pendientes
+        bus_expected_item #(
+            PCKG_SZ
+        ) item;
 
-            if (entregas_pendientes[i].dst == dst && entregas_pendientes[i].packet === packet) begin // Compara destino y paquete
-                return i;                                 // Retorna índice encontrado
-            end
-        end
+        item = new();
 
-        return -1;                                        // Indica que no existe
+        item.txn_id = tr.id;
+        item.src = tr.src;
+        item.dst = dst;
 
-    endfunction                                           // Fin de buscar_entrega
+        item.packet = tr.packet;
 
-    function bus_expected_item #(PCKG_SZ) ver_entrega(    // Consulta una entrega
-        int index                                         // Índice solicitado
+        item.t_pop = t_pop;
+
+        item.is_broadcast = is_broadcast;
+
+        entregas_pendientes.push_back(item);
+
+        n_entregas_creadas++;
+
+    endfunction
+
+
+    // ============================================================
+    // BUSCAR ENTREGA ESPERADA
+    // ============================================================
+
+    function int buscar_entrega(
+        input int dst,
+        input bit [PCKG_SZ-1:0] packet
     );
-        if (index < 0 ||index >= entregas_pendientes.size())begin // Valida índice
-            return null;                                  // Retorna nulo si es inválido
+
+        for (int i = 0; i < entregas_pendientes.size(); i++) begin
+
+            if (
+                entregas_pendientes[i].dst == dst &&
+                entregas_pendientes[i].packet == packet
+            )
+                return i;
+
         end
-        return entregas_pendientes[index];                // Retorna entrega encontrada
 
-    endfunction                                           // Fin de ver_entrega
+        return -1;
 
-    function bus_expected_item #(PCKG_SZ) retirar_entrega( // Retira entrega pendiente
-        int index                                         // Índice a retirar
+    endfunction
+
+
+    // ============================================================
+    // VER ENTREGA
+    // ============================================================
+
+    function bus_expected_item #(
+        PCKG_SZ
+    ) ver_entrega(
+        input int index
     );
-        bus_expected_item #(PCKG_SZ) item;                // Entrega retirada
 
-        if (index < 0 ||index >= entregas_pendientes.size())begin // Valida índice
-            return null;                                  // Retorna nulo si es inválido
+        if (
+            index < 0 ||
+            index >= entregas_pendientes.size()
+        )
+            return null;
+
+        return entregas_pendientes[index];
+
+    endfunction
+
+
+    // ============================================================
+    // RETIRAR ENTREGA
+    // ============================================================
+
+    function bus_expected_item #(
+        PCKG_SZ
+    ) retirar_entrega(
+        input int index
+    );
+
+        bus_expected_item #(
+            PCKG_SZ
+        ) item;
+
+        if (
+            index < 0 ||
+            index >= entregas_pendientes.size()
+        )
+            return null;
+
+        item = entregas_pendientes[index];
+
+        entregas_pendientes.delete(index);
+
+        n_entregas_retiradas++;
+
+        return item;
+
+    endfunction
+
+
+    // ============================================================
+    // LIMPIAR SCOREBOARD
+    // ============================================================
+
+    function void limpiar();
+
+        for (int src = 0; src < DRVRS; src++)
+            fifo_esperada[src].delete();
+
+        entregas_pendientes.delete();
+
+        t_envio_por_id.delete();
+
+    endfunction
+
+
+    // ============================================================
+    // SCOREBOARD VACIO
+    // ============================================================
+
+    function bit vacio();
+
+        for (int src = 0; src < DRVRS; src++) begin
+
+            if (fifo_esperada[src].size() != 0)
+                return 1'b0;
+
         end
-        item = entregas_pendientes[index];                // Guarda entrega seleccionada
-        entregas_pendientes.delete(index);                // Elimina entrega pendiente
-        n_entregas_retiradas++;                           // Incrementa retiradas
-        return item;                                      // Retorna entrega eliminada
 
-    endfunction                                           // Fin de retirar_entrega
+        if (entregas_pendientes.size() != 0)
+            return 1'b0;
 
-    function void limpiar();                              // Limpia el modelo interno
+        if (agnt2sb.num() != 0)
+            return 1'b0;
 
-        foreach (fifo_esperada[i]) begin                  // Recorre colas esperadas
-            fifo_esperada[i].delete();                    // Vacía cada cola
-        end 
-        entregas_pendientes.delete();                     // Vacía entregas pendientes
+        if (drv2sb != null) begin
 
-    endfunction                                           // Fin de limpiar
+            if (drv2sb.num() != 0)
+                return 1'b0;
 
-    function bit vacio();                                 // Verifica estado vacío
-
-        if (agnt2sb.num() != 0)begin                      // Revisa mailbox del Agente
-            return 0;                                     // Aún hay transacciones
-        end 
-        foreach (fifo_esperada[i]) begin                  // Recorre colas esperadas
-
-            if (fifo_esperada[i].size() != 0) begin       // Verifica elementos pendientes
-                return 0;                                 // Scoreboard no está vacío
-            end
-        end
-        if (entregas_pendientes.size() != 0) begin        // Revisa entregas pendientes
-            return 0;                                     // Aún quedan entregas
         end
 
-        return 1;                                         // Scoreboard está vacío
-    endfunction                                        
+        return 1'b1;
 
-    function void reporte();                              // Muestra estadísticas finales
+    endfunction
 
-        $display("");                                     // Línea en blanco
-        $display("======================================"); // Separador
-        $display("          SCOREBOARD REPORT");         // Título del reporte
-        $display("======================================"); // Separador
-        $display("Recibidas del Agent      : %0d", n_recibidas);          
-        $display("Consumidas por pop       : %0d", n_consumidas);         
-        $display("Entregas creadas         : %0d", n_entregas_creadas);   
-        $display("Entregas retiradas       : %0d", n_entregas_retiradas);
-        $display("Broadcast                : %0d", n_broadcast);         
-        $display("Destinos invalidos       : %0d", n_invalidas);          
-        $display("Src fuera de rango       : %0d", n_src_fuera_rango);    
 
-        $display("Entregas pendientes: %0d",entregas_pendientes.size());
+    // ============================================================
+    // REPORTE
+    // ============================================================
 
-        foreach (fifo_esperada[i]) begin                  // Recorre colas esperadas
-            $display("FIFO esperada[%0d]: %0d",i,fifo_esperada[i].size());
+    function void reporte();
+
+        $display("");
+        $display("======================================");
+        $display("          SCOREBOARD REPORT");
+        $display("======================================");
+
+        $display(
+            "Recibidas del Agent      : %0d",
+            n_recibidas
+        );
+
+        $display(
+            "Tiempos envio registrados: %0d",
+            n_envios_registrados
+        );
+
+        $display(
+            "Consumidas por pop       : %0d",
+            n_consumidas
+        );
+
+        $display(
+            "Entregas creadas         : %0d",
+            n_entregas_creadas
+        );
+
+        $display(
+            "Entregas retiradas       : %0d",
+            n_entregas_retiradas
+        );
+
+        $display(
+            "Broadcast                : %0d",
+            n_broadcast
+        );
+
+        $display(
+            "Destinos invalidos       : %0d",
+            n_invalidas
+        );
+
+        $display(
+            "Src fuera de rango       : %0d",
+            n_src_fuera_rango
+        );
+
+        $display(
+            "Entregas pendientes      : %0d",
+            entregas_pendientes.size()
+        );
+
+
+        for (int src = 0; src < DRVRS; src++) begin
+
+            $display(
+                "FIFO esperada[%0d]       : %0d",
+                src,
+                fifo_esperada[src].size()
+            );
+
         end
-        $display("");                                    
-    endfunction                                         
-endclass                                                
+
+        $display("");
+
+    endfunction
+
+endclass
