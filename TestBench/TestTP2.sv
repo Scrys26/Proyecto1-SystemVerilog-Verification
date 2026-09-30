@@ -66,6 +66,7 @@ module TestTP2;
     configurar_escenario();
     env = new(vif.DRV, vif.MON);
     env.build();
+    env.chk.abrir_csv("latencias_TP2.csv");
     configurar_agentes();
     inicializar_rutas();
     env.reset();
@@ -87,6 +88,7 @@ module TestTP2;
           $display("");
           $display("[%0t] [TP02] DEATH_TIME: %0d ciclos",$time,max_cycles);
           evaluar_criterios();
+          env.chk.cerrar_csv();
         end
       end
     join_any
