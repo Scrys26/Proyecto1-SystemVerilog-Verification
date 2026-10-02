@@ -1,9 +1,38 @@
-simv
-simv.daidir/
+Reportes/*
+!Reportes/*.csv
+!Reportes/*.png
+
+# Artefactos de VCS
 csrc/
-*.log
-*.vpd
-*.fsdb
-DVEfiles/
+simv
+simv.*
+simv_*
+*.daidir/
+*.vdb/
+
 ucli.key
+vc_hdrs.h
+tapi_xml_writer.log
+
+.vcs_lib_lock
 AN.DB/
+DVEfiles/
+
+
+
+# Verdi y FSDB
+*.fsdb
+verdiLog/
+novas.conf
+novas.rc
+novas_dump.log
+novas*.rc
+nWaveLog/
+
+# Varios
+*.log
+core
+core.*
+*.swp
+*~
+.DS_Store

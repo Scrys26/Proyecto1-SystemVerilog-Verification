@@ -53,6 +53,13 @@ CSV_BASE = $(basename $(notdir $(CSV)))
 
 HISTOGRAMA = $(REPORT_DIR)/histograma_$(CSV_BASE).png
 
+#-------------------------------------------------------------
+#Ondas para verdi
+#-------------------------------------------------------------
+
+WAVES ?= 0
+FSDB ?= $(REPORT_DIR)/ondas_$(TOP)_p$(PCKG_SZ).fsdb
+
 
 # ------------------------------------------------------------
 # Nombre y ubicacion del ejecutable VCS
@@ -90,6 +97,7 @@ TOP_FILE = TestBench/$(TOP).sv
 ALL_FILES = \
 	$(DUT_FILES) \
 	$(SCRIPT_FILES) \
+	TestBench/wave_dump.sv
 	$(TOP_FILE)
 
 
@@ -100,7 +108,10 @@ ALL_FILES = \
 VCS_FLAGS = \
 	-sverilog \
 	-full64 \
+	-kdb \
+	-lca \
 	-debug_access+all \
+	-debug_region+cell+encrypt \
 	-timescale=1ns/1ps \
 	+incdir+Scripts+TestBench \
 	+define+TB_BITS=$(BITS) \
@@ -117,6 +128,13 @@ VCS_FLAGS = \
 
 RUN_ARGS = +ntb_random_seed=$(SEED)
 
+#-------------------------------------------------------------
+#Argumentos para verdi
+#------------------------------------------------------------
+
+ifeq ($(WAVES),1)
+RUN_ARGS += +fsdb +fsdb_file=$(FSDB)
+endif
 
 # ------------------------------------------------------------
 # Argumentos exclusivos de TestLatencia
@@ -139,7 +157,7 @@ endif
 # Targets
 # ------------------------------------------------------------
 
-.PHONY: all check comp run reports plot clean clean_reports help
+.PHONY: all check comp run reports plot clean clean_reports verde help
 
 
 # ============================================================
@@ -324,6 +342,20 @@ plot: reports
 	@echo "Histograma : $(HISTOGRAMA)"
 	@echo "============================================================"
 
+#------------------------------------------------------------------
+#Para correr las dumpwaves
+#------------------------------------------------------------------
+
+verdi:
+	@test -f $(FSDB) || \
+		(echo "ERROR: No existe $(FSDB)."; \
+		 echo "Correr primero: make run TOP=$(TOP) WAVES=1"; \
+		 exit 1)
+
+	verdi \
+		-ssf $(FSDB) \
+		-dbdir $(BUILD_DIR)/$(SIMV_NAME).daidir \
+		-nologo &
 
 # ============================================================
 # Limpiar archivos de compilacion
