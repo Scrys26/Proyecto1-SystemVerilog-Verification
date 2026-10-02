@@ -97,7 +97,7 @@ TOP_FILE = TestBench/$(TOP).sv
 ALL_FILES = \
 	$(DUT_FILES) \
 	$(SCRIPT_FILES) \
-	TestBench/wave_dump.sv
+	TestBench/wave_dump.sv\
 	$(TOP_FILE)
 
 
@@ -157,7 +157,7 @@ endif
 # Targets
 # ------------------------------------------------------------
 
-.PHONY: all check comp run reports plot clean clean_reports verde help
+.PHONY: all check comp run reports plot clean clean_reports verdi help
 
 
 # ============================================================
