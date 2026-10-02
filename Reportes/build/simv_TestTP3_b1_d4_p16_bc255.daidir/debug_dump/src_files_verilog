@@ -1,0 +1,14 @@
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/DUT/Referencias/DUT.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Agente.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Ambiente.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Checker.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Monitor.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Paquete.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/Scoreboard.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/bus_config.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/bus_expec_item.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/bus_if_prov.sv
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/bus_mon_txn.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/bus_txn.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/Scripts/driver.svh
+/mnt/vol_NFS_rh003/Est_Veri_II2026/FERNANDEZ_AGUILAR_RANDY_VeriII26/Proyecto1-SystemVerilog-Verification/TestBench/TestTP3.sv
