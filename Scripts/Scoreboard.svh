@@ -331,11 +331,6 @@ class Scoreboard #(
 
     endfunction
 
-
-    // ============================================================
-    // AGREGAR ENTREGA PENDIENTE
-    // ============================================================
-
     function void agregar_entrega(
         bus_txn #(
             PCKG_SZ,
@@ -372,11 +367,6 @@ class Scoreboard #(
 
     endfunction
 
-
-    // ============================================================
-    // BUSCAR ENTREGA ESPERADA
-    // ============================================================
-
     function int buscar_entrega(
         input int dst,
         input bit [PCKG_SZ-1:0] packet
@@ -395,11 +385,6 @@ class Scoreboard #(
         return -1;
 
     endfunction
-
-
-    // ============================================================
-    // VER ENTREGA
-    // ============================================================
 
     function bus_expected_item #(
         PCKG_SZ
@@ -507,51 +492,22 @@ class Scoreboard #(
         $display("          SCOREBOARD REPORT");
         $display("======================================");
 
-        $display(
-            "Recibidas del Agent      : %0d",
-            n_recibidas
-        );
+        $display("Recibidas del Agent  : %0d", n_recibidas );
 
-        $display(
-            "Tiempos envio registrados: %0d",
-            n_envios_registrados
-        );
+        $display( "Tiempos envio registrados: %0d",n_envios_registrados);
 
-        $display(
-            "Consumidas por pop       : %0d",
-            n_consumidas
-        );
+        $display( "Consumidas por pop  : %0d",n_consumidas );
 
-        $display(
-            "Entregas creadas         : %0d",
-            n_entregas_creadas
-        );
+        $display( "Entregas creadas  : %0d",n_entregas_creadas);
 
-        $display(
-            "Entregas retiradas       : %0d",
-            n_entregas_retiradas
-        );
+        $display("Entregas retiradas  : %0d",n_entregas_retiradas);
 
-        $display(
-            "Broadcast                : %0d",
-            n_broadcast
-        );
+        $display("Broadcast: %0d", n_broadcast);
+        $display("Destinos invalidos : %0d",n_invalidas );
 
-        $display(
-            "Destinos invalidos       : %0d",
-            n_invalidas
-        );
+        $display( "Src fuera de rango   : %0d", n_src_fuera_rango);
 
-        $display(
-            "Src fuera de rango       : %0d",
-            n_src_fuera_rango
-        );
-
-        $display(
-            "Entregas pendientes      : %0d",
-            entregas_pendientes.size()
-        );
-
+        $display("Entregas pendientes  : %0d",entregas_pendientes.size());
 
         for (int src = 0; src < DRVRS; src++) begin
 
